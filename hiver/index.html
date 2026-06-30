@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Hiver — Email Support Management</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e5e7eb;min-height:100vh;display:flex;overflow-x:hidden}
+
+    /* ── Sidebar ── */
+    #sidebar{
+      width:220px;min-width:220px;background:#111827;border-right:1px solid #1e2230;
+      display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:200;
+      transition:width .2s ease,min-width .2s ease;overflow:hidden;
+    }
+    #sidebar.collapsed{width:56px;min-width:56px}
+    .sb-logo{display:flex;align-items:center;gap:10px;padding:20px 18px 16px;border-bottom:1px solid #1e2230;flex-shrink:0}
+    .sb-logo-icon{font-size:22px;flex-shrink:0}
+    .sb-logo-text{font-size:17px;font-weight:800;color:#f97316;white-space:nowrap;overflow:hidden}
+    #sidebar.collapsed .sb-logo-text{display:none}
+    .sb-nav{flex:1;padding:10px 0;overflow-y:auto;overflow-x:hidden}
+    .sb-nav::-webkit-scrollbar{width:3px}
+    .sb-nav::-webkit-scrollbar-thumb{background:#2d3348;border-radius:2px}
+    .sb-item{
+      display:flex;align-items:center;gap:12px;padding:10px 18px;cursor:pointer;
+      color:#9ca3af;font-size:13px;font-weight:500;transition:all .15s;
+      white-space:nowrap;position:relative;border-left:3px solid transparent;
+    }
+    .sb-item:hover{color:#e5e7eb;background:rgba(255,255,255,.04)}
+    .sb-item.active{color:#f97316;background:rgba(249,115,22,.08);border-left-color:#f97316}
+    .sb-item svg{width:17px;height:17px;flex-shrink:0}
+    .sb-label{overflow:hidden;transition:opacity .2s}
+    #sidebar.collapsed .sb-label{opacity:0;width:0}
+    #sidebar.collapsed .sb-item:hover::after{
+      content:attr(data-tip);position:absolute;left:60px;top:50%;transform:translateY(-50%);
+      background:#1e2230;color:#e5e7eb;font-size:12px;padding:5px 10px;border-radius:6px;
+      white-space:nowrap;border:1px solid #2d3348;pointer-events:none;z-index:300;
+    }
+    .sb-bottom{padding:12px 18px 16px;border-top:1px solid #1e2230;flex-shrink:0}
+    .sb-org{font-size:11px;color:#4b5563;white-space:nowrap;overflow:hidden;margin-bottom:10px;transition:opacity .2s}
+    #sidebar.collapsed .sb-org{opacity:0}
+    .sb-collapse{
+      display:flex;align-items:center;gap:8px;cursor:pointer;color:#6b7280;font-size:12px;
+      padding:6px 0;transition:color .15s;white-space:nowrap;
+    }
+    .sb-collapse:hover{color:#f97316}
+    .sb-collapse svg{width:16px;height:16px;flex-shrink:0;transition:transform .2s}
+    #sidebar.collapsed .sb-collapse svg{transform:rotate(180deg)}
+    #sidebar.collapsed .sb-collapse-label{opacity:0;width:0;overflow:hidden}
+
+    /* ── Main wrapper ── */
+    #appWrap{margin-left:220px;display:flex;flex-direction:column;min-height:100vh;transition:margin-left .2s ease}
+    #appWrap.sb-collapsed{margin-left:56px}
+
+    /* ── Header ── */
+    #appHeader{
+      padding:13px 28px;border-bottom:1px solid #1e2230;display:flex;align-items:center;
+      justify-content:space-between;position:sticky;top:0;background:#0f1117;z-index:100;
+      flex-wrap:wrap;gap:8px;
+    }
+    .hdr-left{display:flex;align-items:center;gap:12px}
+    .hdr-back{color:#6b7280;font-size:12px;text-decoration:none;transition:color .15s}
+    .hdr-back:hover{color:#f97316}
+    .hdr-page-title{font-size:17px;font-weight:700;color:#f0f2ff}
+    .hdr-sub{font-size:11px;color:#6b7280}
+    .hdr-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    .inbox-sel{background:#161b27;border:1px solid #1e2230;color:#e5e7eb;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;outline:none}
+    .inbox-sel:focus{border-color:rgba(249,115,22,.5)}
+    .refresh-btn{background:#161b27;border:1px solid #2d3348;color:#9ca3af;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
+    .refresh-btn:hover{border-color:#f97316;color:#f97316}
+    .lb{height:2px;background:linear-gradient(90deg,#f97316,#fb923c,#f97316);background-size:200% 100%;animation:sh 1.2s infinite;display:none}
+    .lb.on{display:block}
+    @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    /* ── Date filter ── */
+    .date-filter-bar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+    .df-btn{background:#161b27;border:1px solid #1e2230;color:#9ca3af;padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .df-btn:hover{border-color:#f97316;color:#f97316}
+    .df-btn.active{background:rgba(249,115,22,.12);border-color:rgba(249,115,22,.45);color:#f97316;font-weight:600}
+    .custom-range{display:none;align-items:center;gap:5px}
+    .custom-range.visible{display:flex}
+    .df-date{background:#161b27;border:1px solid #1e2230;color:#e5e7eb;padding:5px 8px;border-radius:7px;font-size:11px;cursor:pointer;color-scheme:dark;outline:none}
+    .df-apply{background:rgba(249,115,22,.18);border:1px solid rgba(249,115,22,.45);color:#f97316;padding:5px 10px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;transition:all .15s}
+    .df-apply:hover{background:rgba(249,115,22,.28)}
+
+    /* ── Pages ── */
+    .page{display:none;padding:22px 28px;max-width:1600px}
+    .page.active{display:block}
+
+    /* ── Common panel ── */
+    .panel{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:18px}
+    .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-wrap:wrap}
+    .pt{font-size:13px;font-weight:600;color:#f0f2ff}
+    .pb{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(249,115,22,.12);color:#f97316}
+
+    /* ── Stats grid ── */
+    .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:22px}
+    .sc{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:16px 18px;transition:border-color .15s}
+    .sc:hover{border-color:#2d3348}
+    .sc-lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .sc-val{font-size:28px;font-weight:800;line-height:1}
+    .sc-sub{font-size:11px;color:#6b7280;margin-top:3px}
+    .c-or{color:#f97316}.c-gr{color:#22c55e}.c-bl{color:#4f8ef7}.c-rd{color:#ef4444}.c-pu{color:#a78bfa}.c-yw{color:#fbbf24}
+
+    /* ── Grid layouts ── */
+    .g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+    .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;margin-bottom:18px}
+    .g13{display:grid;grid-template-columns:3fr 2fr;gap:18px;margin-bottom:18px}
+    .full{margin-bottom:18px}
+
+    /* ── Inbox cards ── */
+    .inbox-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .inbox-card{background:#1a1f2e;border:1px solid #1e2230;border-radius:9px;padding:14px;cursor:pointer;transition:all .15s}
+    .inbox-card:hover{border-color:rgba(249,115,22,.35);transform:translateY(-1px)}
+    .inbox-card.active{border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.05)}
+    .ic-name{font-size:13px;font-weight:700;color:#f0f2ff;margin-bottom:4px}
+    .ic-email{font-size:10px;color:#4b5563;margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ic-stats{display:flex;gap:8px;flex-wrap:wrap}
+    .ic-stat{font-size:11px}
+
+    /* ── Conversation list ── */
+    .conv-list{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow-y:auto}
+    .conv-list::-webkit-scrollbar{width:4px}
+    .conv-list::-webkit-scrollbar-thumb{background:#2d3348;border-radius:2px}
+    .conv-item{background:#1a1f2e;border:1px solid #1e2230;border-radius:8px;padding:10px 14px;cursor:pointer;transition:border-color .15s}
+    .conv-item:hover{border-color:#2d3348}
+    .conv-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+    .conv-id{font-size:11px;color:#4b5563}
+    .status-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600}
+    .status-open{background:rgba(249,115,22,.12);color:#f97316}
+    .status-closed{background:rgba(34,197,94,.12);color:#22c55e}
+    .status-pending{background:rgba(79,142,247,.12);color:#4f8ef7}
+    .conv-assignee{font-size:11px;color:#6b7280}
+    .conv-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+    .tag-pill{font-size:10px;padding:1px 6px;border-radius:8px;color:#fff;opacity:.85}
+
+    /* ── Assignee ── */
+    .assignee-list{display:flex;flex-direction:column;gap:8px}
+    .assignee-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#1a1f2e;border:1px solid #1e2230;border-radius:8px}
+    .av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+    .a-name{font-size:12px;color:#d1d5db;font-weight:600;flex:1}
+    .a-stat{font-size:12px;font-weight:700}
+
+    /* ── Bar chart ── */
+    .bars{display:flex;flex-direction:column;gap:8px}
+    .br{display:flex;align-items:center;gap:8px}
+    .bl{font-size:11px;color:#6b7280;width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+    .bt{flex:1;height:7px;background:#1e2230;border-radius:4px;overflow:hidden}
+    .bf{height:100%;border-radius:4px;transition:width .8s}
+    .bv{font-size:11px;color:#9ca3af;width:30px;text-align:right;flex-shrink:0}
+
+    /* ── Tag cloud ── */
+    .tag-cloud{display:flex;flex-wrap:wrap;gap:6px}
+    .tag-item{font-size:11px;padding:3px 10px;border-radius:12px;color:#fff;opacity:.9;cursor:default;transition:opacity .15s}
+    .tag-item:hover{opacity:1}
+
+    /* ── Tables ── */
+    .utbl{width:100%;border-collapse:collapse}
+    .utbl thead{position:sticky;top:0;z-index:2}
+    .utbl th{font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;text-align:left;border-bottom:1px solid #1e2230;white-space:nowrap;cursor:pointer;user-select:none;background:#111827}
+    .utbl th:hover{color:#9ca3af}
+    .utbl th.sort-asc::after{content:' ↑'}
+    .utbl th.sort-desc::after{content:' ↓'}
+    .utbl td{padding:8px 10px;border-bottom:1px solid #1a1f2e;font-size:12px}
+    .utbl tr:nth-child(even) td{background:#141920}
+    .utbl tr:hover td{background:#1a1f2e}
+
+    /* ── Skeleton ── */
+    .sk{background:linear-gradient(90deg,#1e2230 25%,#252b3b 50%,#1e2230 75%);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:5px;height:12px;margin:4px 0}
+    .empty{font-size:13px;color:#4b5563;padding:20px;text-align:center}
+
+    /* ── Team (Page 2) ── */
+    .team-controls{display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+    .search-inp{background:#161b27;border:1px solid #1e2230;color:#e5e7eb;padding:8px 14px;border-radius:8px;font-size:13px;width:260px;outline:none;transition:border-color .15s}
+    .search-inp:focus{border-color:rgba(249,115,22,.5)}
+    .filter-sel{background:#161b27;border:1px solid #1e2230;color:#e5e7eb;padding:8px 12px;border-radius:8px;font-size:13px;outline:none;cursor:pointer}
+    .agent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+    .agent-card{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:20px;transition:border-color .15s}
+    .agent-card:hover{border-color:#2d3348}
+    .agent-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+    .agent-av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0}
+    .agent-name{font-size:14px;font-weight:700;color:#f0f2ff;margin-bottom:2px}
+    .agent-email{font-size:11px;color:#4b5563}
+    .agent-inboxes{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+    .inbox-badge{font-size:10px;padding:2px 7px;border-radius:10px;background:rgba(79,142,247,.1);border:1px solid rgba(79,142,247,.2);color:#4f8ef7}
+    .agent-stats{display:flex;gap:0;border:1px solid #1e2230;border-radius:8px;overflow:hidden;margin-bottom:12px}
+    .agent-stat{flex:1;text-align:center;padding:8px 4px;border-right:1px solid #1e2230}
+    .agent-stat:last-child{border-right:none}
+    .agent-stat-val{font-size:18px;font-weight:800;line-height:1}
+    .agent-stat-lbl{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+    .workload-bar-wrap{display:flex;flex-direction:column;gap:5px}
+    .workload-lbl{display:flex;justify-content:space-between;font-size:11px;color:#9ca3af}
+    .workload-track{height:6px;background:#1e2230;border-radius:4px;overflow:hidden}
+    .workload-fill{height:100%;border-radius:4px;transition:width .8s}
+
+    /* ── Reports (Page 3) ── */
+    .tab-bar{display:flex;gap:0;border-bottom:1px solid #1e2230;margin-bottom:20px}
+    .tab-btn{padding:10px 20px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap}
+    .tab-btn:hover{color:#9ca3af}
+    .tab-btn.active{color:#f97316;border-bottom-color:#f97316}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+    .report-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+    .report-card{background:#161b27;border:1px solid #1e2230;border-radius:10px;padding:18px}
+    .report-card-lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+    .report-card-val{font-size:32px;font-weight:900;line-height:1}
+    .report-card-sub{font-size:11px;color:#6b7280;margin-top:4px}
+    .tbl-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+    .export-btn{background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.3);color:#f97316;padding:7px 16px;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600;transition:all .15s}
+    .export-btn:hover{background:rgba(249,115,22,.22)}
+
+    /* ── Settings (Page 4) ── */
+    .settings-section{margin-bottom:28px}
+    .settings-section-title{font-size:12px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #1e2230}
+    .settings-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #1a1f2e;gap:16px}
+    .settings-row:last-child{border-bottom:none}
+    .settings-label{font-size:13px;color:#e5e7eb;font-weight:500}
+    .settings-desc{font-size:11px;color:#6b7280;margin-top:2px}
+    .settings-val{font-size:13px;color:#9ca3af}
+    .settings-sel{background:#161b27;border:1px solid #1e2230;color:#e5e7eb;padding:7px 12px;border-radius:7px;font-size:13px;outline:none;cursor:pointer;transition:border-color .15s}
+    .settings-sel:focus{border-color:rgba(249,115,22,.5)}
+    .api-key-wrap{display:flex;align-items:center;gap:8px}
+    .api-key-box{background:#1a1f2e;border:1px solid #1e2230;color:#e5e7eb;padding:8px 14px;border-radius:7px;font-size:13px;font-family:monospace;flex:1;min-width:280px}
+    .api-action-btn{background:#161b27;border:1px solid #2d3348;color:#9ca3af;padding:7px 14px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .api-action-btn:hover{border-color:#f97316;color:#f97316}
+    .save-btn{background:rgba(249,115,22,.18);border:1px solid rgba(249,115,22,.45);color:#f97316;padding:9px 22px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;transition:all .15s;margin-top:6px}
+    .save-btn:hover{background:rgba(249,115,22,.28)}
+    .save-toast{display:none;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#22c55e;padding:8px 16px;border-radius:7px;font-size:12px;margin-top:8px}
+    .save-toast.show{display:inline-block}
+
+    /* ── Loading Screen ── */
+    #loadingScreen{
+      position:fixed;inset:0;z-index:9999;
+      background:#0f1117;
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;gap:0;
+      transition:opacity .5s ease, transform .5s ease;
+    }
+    #loadingScreen.fade-out{opacity:0;transform:scale(1.04);pointer-events:none}
+    #loadingScreen::before{
+      content:'';position:absolute;inset:0;
+      background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(255,255,255,.015) 3px,rgba(255,255,255,.015) 4px);
+      pointer-events:none;
+    }
+    #loadingScreen::after{
+      content:'';position:absolute;inset:0;
+      background-image:radial-gradient(circle,rgba(249,115,22,.12) 1px,transparent 1px);
+      background-size:28px 28px;
+      animation:dotDrift 8s linear infinite;pointer-events:none;
+    }
+    @keyframes dotDrift{0%{background-position:0 0}100%{background-position:28px 28px}}
+    @keyframes iconBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    .ls-inner{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:14px;width:460px;max-width:90vw}
+    .ls-emoji{font-size:48px;line-height:1;filter:drop-shadow(0 0 18px rgba(249,115,22,.6));animation:iconBounce 1.5s ease-in-out infinite}
+    .ls-title{font-size:28px;font-weight:800;letter-spacing:2px;color:#f97316;text-shadow:0 0 24px rgba(249,115,22,.55)}
+    .ls-subtitle{font-size:13px;color:#6b7280;letter-spacing:.5px}
+    .ls-pct{font-size:64px;font-weight:900;color:#f0f2ff;line-height:1;text-shadow:0 0 32px rgba(240,242,255,.3);font-variant-numeric:tabular-nums}
+    .ls-bar-track{width:400px;max-width:90vw;height:6px;background:#1e2230;border-radius:99px;overflow:hidden;box-shadow:0 0 0 1px rgba(249,115,22,.15)}
+    .ls-bar-fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#f97316,#fb923c,#fbbf24);background-size:200% 100%;transition:width .35s cubic-bezier(.4,0,.2,1);animation:barShimmer 1.6s linear infinite}
+    @keyframes barShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    .ls-status{font-size:12px;color:#4b5563;letter-spacing:.3px;min-height:16px;transition:opacity .2s}
+
+    /* ── Tag CSV export ── */
+    .tbl-toolbar-right{display:flex;align-items:center;gap:10px}
+
+    /* ── Responsive ── */
+    @media(max-width:1200px){
+      .stats{grid-template-columns:repeat(3,1fr)}
+      .g2,.g3,.g13{grid-template-columns:1fr}
+      .inbox-grid{grid-template-columns:repeat(2,1fr)}
+      .agent-grid{grid-template-columns:repeat(2,1fr)}
+      .report-cards{grid-template-columns:repeat(2,1fr)}
+    }
+    @media(max-width:768px){
+      #sidebar{width:56px;min-width:56px}
+      #appWrap{margin-left:56px}
+      .agent-grid{grid-template-columns:1fr}
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .report-cards{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Loading Screen ── -->
+<div id="loadingScreen">
+  <div class="ls-inner">
+    <div class="ls-emoji">📧</div>
+    <div class="ls-title">HIVER</div>
+    <div class="ls-subtitle">Loading inbox data...</div>
+    <div class="ls-pct" id="lsPct">0%</div>
+    <div class="ls-bar-track">
+      <div class="ls-bar-fill" id="lsBar"></div>
+    </div>
+    <div class="ls-status" id="lsStatus">Initialising...</div>
+  </div>
+</div>
+
+<!-- ── Sidebar ── -->
+<nav id="sidebar">
+  <div class="sb-logo">
+    <span class="sb-logo-icon">📧</span>
+    <span class="sb-logo-text">Hiver</span>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-item active" data-page="overview" data-tip="Overview" onclick="navigate('overview')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+      </svg>
+      <span class="sb-label">Overview</span>
+    </div>
+    <div class="sb-item" data-page="team" data-tip="Team" onclick="navigate('team')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span class="sb-label">Team</span>
+    </div>
+    <div class="sb-item" data-page="reports" data-tip="Reports" onclick="navigate('reports')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span class="sb-label">Reports</span>
+    </div>
+    <div class="sb-item" data-page="settings" data-tip="Settings" onclick="navigate('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>
+      </svg>
+      <span class="sb-label">Settings</span>
+    </div>
+  </div>
+  <div class="sb-bottom">
+    <div class="sb-org" id="sbOrg">GP Bookkeeper</div>
+    <div class="sb-collapse" onclick="toggleSidebar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      <span class="sb-collapse-label">Collapse</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── App Wrapper ── -->
+<div id="appWrap">
+  <div class="lb" id="lb"></div>
+
+  <!-- ── Header ── -->
+  <header id="appHeader">
+    <div class="hdr-left">
+      <a class="hdr-back" href="../index.html">← Hub</a>
+      <div>
+        <div class="hdr-page-title" id="hdrTitle">Overview</div>
+        <div class="hdr-sub" id="hsub">GP Bookkeeper · Loading...</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="date-filter-bar">
+        <button class="df-btn" onclick="setPreset('today')">Today</button>
+        <button class="df-btn" onclick="setPreset('week')">Week</button>
+        <button class="df-btn" onclick="setPreset('month')">Month</button>
+        <button class="df-btn" onclick="setPreset('30d')">30d</button>
+        <button class="df-btn" onclick="setPreset('90d')">90d</button>
+        <button class="df-btn active" id="dfAll" onclick="setPreset('all')">All</button>
+        <button class="df-btn" id="dfCustomBtn" onclick="toggleCustomRange()">Custom</button>
+        <div class="custom-range" id="customRange">
+          <input class="df-date" type="date" id="dfFrom" title="From"/>
+          <span style="color:#4b5563;font-size:11px">–</span>
+          <input class="df-date" type="date" id="dfTo" title="To"/>
+          <button class="df-apply" onclick="applyCustomRange()">Apply</button>
+        </div>
+      </div>
+      <select class="inbox-sel" id="inboxSel" onchange="switchInbox(this.value)">
+        <option value="all">All Inboxes</option>
+      </select>
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════
+       PAGE 1 — OVERVIEW
+  ════════════════════════════════════════ -->
+  <div class="page active" id="page-overview">
+    <!-- 6 Stats -->
+    <div class="stats" id="stats">
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+    </div>
+
+    <!-- Inbox overview cards -->
+    <div class="full panel">
+      <div class="ph"><div class="pt">Inboxes Overview</div><div class="pb" id="inboxCount">—</div></div>
+      <div class="inbox-grid" id="inboxGrid"><div class="sk"></div></div>
+    </div>
+
+    <div class="g13">
+      <!-- Conversations list -->
+      <div class="panel">
+        <div class="ph">
+          <div class="pt" id="convTitle">Conversations</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <select id="statusFilter" onchange="renderConversations()" style="background:#1a1f2e;border:1px solid #1e2230;color:#e5e7eb;padding:4px 8px;border-radius:6px;font-size:11px;outline:none">
+              <option value="all">All Status</option>
+              <option value="open">Open</option>
+              <option value="pending">Pending</option>
+              <option value="closed">Closed</option>
+            </select>
+            <div class="pb" id="convBadge">—</div>
+          </div>
+        </div>
+        <div class="conv-list" id="convList"><div class="sk"></div><div class="sk"></div></div>
+      </div>
+
+      <!-- Status breakdown + Assignee workload -->
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div class="panel">
+          <div class="ph"><div class="pt">Status Breakdown</div></div>
+          <div id="statusBreakdown"><div class="sk"></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><div class="pt">Assignee Workload</div><div class="pb" id="assigneeCount">—</div></div>
+          <div class="assignee-list" id="assigneeList"><div class="sk"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="g2">
+      <!-- Tag bars -->
+      <div class="panel">
+        <div class="ph"><div class="pt">Top Tags</div><div class="pb" id="tagCount">—</div></div>
+        <div class="bars" id="tagBars"><div class="sk"></div><div class="sk"></div></div>
+      </div>
+      <!-- Tag cloud -->
+      <div class="panel">
+        <div class="ph"><div class="pt">Tag Cloud</div></div>
+        <div class="tag-cloud" id="tagCloud"><div class="sk"></div></div>
+      </div>
+    </div>
+
+    <!-- Users table -->
+    <div class="full panel">
+      <div class="ph"><div class="pt">Inbox Members</div><div class="pb" id="userCount">—</div></div>
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+        <table class="utbl" id="userTable">
+          <thead><tr>
+            <th>Member</th><th>Email</th>
+            <th>Open</th><th>Pending</th><th>Closed</th><th>Total</th>
+          </tr></thead>
+          <tbody id="userBody"><tr><td colspan="6"><div class="sk"></div></td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /page-overview -->
+
+  <!-- ════════════════════════════════════════
+       PAGE 2 — TEAM
+  ════════════════════════════════════════ -->
+  <div class="page" id="page-team">
+    <div class="team-controls">
+      <input class="search-inp" id="teamSearch" type="text" placeholder="Search agents..." oninput="renderTeamPage()">
+      <select class="filter-sel" id="teamInboxFilter" onchange="renderTeamPage()">
+        <option value="all">All Inboxes</option>
+      </select>
+    </div>
+
+    <!-- Agent cards grid (3 cols) -->
+    <div class="agent-grid" id="agentGrid"></div>
+
+    <!-- Full agent table -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Agent Performance Table</div>
+        <input class="search-inp" id="agentTableSearch" style="width:220px;padding:5px 12px;font-size:12px" type="text" placeholder="Filter table..." oninput="renderAgentTable()">
+      </div>
+      <div style="overflow-x:auto;max-height:480px;overflow-y:auto">
+        <table class="utbl" id="agentTbl">
+          <thead><tr>
+            <th data-col="name" onclick="sortAgentTable('name')">Name</th>
+            <th data-col="email" onclick="sortAgentTable('email')">Email</th>
+            <th data-col="open" onclick="sortAgentTable('open')">Open</th>
+            <th data-col="pending" onclick="sortAgentTable('pending')">Pending</th>
+            <th data-col="closed" onclick="sortAgentTable('closed')">Closed</th>
+            <th data-col="total" onclick="sortAgentTable('total')">Total</th>
+            <th data-col="workload" onclick="sortAgentTable('workload')">Workload%</th>
+            <th data-col="inboxes">Inboxes</th>
+          </tr></thead>
+          <tbody id="agentTblBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /page-team -->
+
+  <!-- ════════════════════════════════════════
+       PAGE 3 — REPORTS
+  ════════════════════════════════════════ -->
+  <div class="page" id="page-reports">
+    <div class="tab-bar">
+      <div class="tab-btn active" onclick="switchReportTab('conv')">Conversation Report</div>
+      <div class="tab-btn" onclick="switchReportTab('tags')">Tag Analysis</div>
+      <div class="tab-btn" onclick="switchReportTab('inbox')">Inbox Report</div>
+    </div>
+
+    <!-- Conversation Report -->
+    <div class="tab-panel active" id="rtab-conv">
+      <div class="report-cards">
+        <div class="report-card">
+          <div class="report-card-lbl">Total Conversations</div>
+          <div class="report-card-val c-or" id="rTotalConv">—</div>
+          <div class="report-card-sub">across all inboxes</div>
+        </div>
+        <div class="report-card">
+          <div class="report-card-lbl">Open Rate</div>
+          <div class="report-card-val c-bl" id="rOpenRate">—</div>
+          <div class="report-card-sub">% of all conversations open</div>
+        </div>
+        <div class="report-card">
+          <div class="report-card-lbl">Unassigned Rate</div>
+          <div class="report-card-val c-rd" id="rUnassignedRate">—</div>
+          <div class="report-card-sub">% without an assignee</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="tbl-toolbar">
+          <input class="search-inp" id="convReportSearch" style="width:240px;padding:6px 12px;font-size:12px" type="text" placeholder="Filter by inbox..." oninput="renderConvReport()">
+          <button class="export-btn" onclick="exportConvCSV()">⬇ Export CSV</button>
+        </div>
+        <div style="overflow-x:auto;max-height:480px;overflow-y:auto">
+          <table class="utbl" id="convReportTbl">
+            <thead><tr>
+              <th onclick="sortConvReport('name')">Inbox</th>
+              <th onclick="sortConvReport('open')">Open</th>
+              <th onclick="sortConvReport('pending')">Pending</th>
+              <th onclick="sortConvReport('closed')">Closed</th>
+              <th onclick="sortConvReport('unassigned')">Unassigned</th>
+              <th onclick="sortConvReport('total')">Total</th>
+              <th onclick="sortConvReport('openPct')">Open%</th>
+            </tr></thead>
+            <tbody id="convReportBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tag Analysis -->
+    <div class="tab-panel" id="rtab-tags">
+      <div class="panel">
+        <div class="tbl-toolbar">
+          <input class="search-inp" id="tagReportSearch" style="width:240px;padding:6px 12px;font-size:12px" type="text" placeholder="Filter tags..." oninput="renderTagReport()">
+          <div class="tbl-toolbar-right">
+            <span style="font-size:12px;color:#6b7280" id="tagReportCount"></span>
+            <button class="export-btn" onclick="exportTagCSV()">⬇ Export CSV</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto;max-height:480px;overflow-y:auto">
+          <table class="utbl" id="tagReportTbl">
+            <thead><tr>
+              <th onclick="sortTagReport('name')">Tag Name</th>
+              <th>Color</th>
+              <th onclick="sortTagReport('count')">Used in Conversations</th>
+              <th onclick="sortTagReport('pct')">% of Tagged Convs</th>
+            </tr></thead>
+            <tbody id="tagReportBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inbox Report -->
+    <div class="tab-panel" id="rtab-inbox">
+      <div class="panel">
+        <div class="tbl-toolbar">
+          <input class="search-inp" id="inboxReportSearch" style="width:240px;padding:6px 12px;font-size:12px" type="text" placeholder="Filter inboxes..." oninput="renderInboxReport()">
+          <button class="export-btn" onclick="exportInboxCSV()">⬇ Export CSV</button>
+        </div>
+        <div style="overflow-x:auto;max-height:480px;overflow-y:auto">
+          <table class="utbl" id="inboxReportTbl">
+            <thead><tr>
+              <th onclick="sortInboxReport('name')">Inbox Name</th>
+              <th onclick="sortInboxReport('email')">Email</th>
+              <th>Channel</th>
+              <th onclick="sortInboxReport('open')">Open</th>
+              <th onclick="sortInboxReport('closed')">Closed</th>
+              <th onclick="sortInboxReport('total')">Total</th>
+              <th onclick="sortInboxReport('health')">Health</th>
+            </tr></thead>
+            <tbody id="inboxReportBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div><!-- /page-reports -->
+
+  <!-- ════════════════════════════════════════
+       PAGE 4 — SETTINGS
+  ════════════════════════════════════════ -->
+  <div class="page" id="page-settings">
+    <div class="tab-bar">
+      <div class="tab-btn active" onclick="switchSettingsTab('general')">General</div>
+      <div class="tab-btn" onclick="switchSettingsTab('api')">API</div>
+      <div class="tab-btn" onclick="switchSettingsTab('inboxes')">Inboxes</div>
+      <div class="tab-btn" onclick="switchSettingsTab('display')">Display</div>
+    </div>
+
+    <!-- General -->
+    <div class="tab-panel active" id="stab-general">
+      <div class="panel" style="max-width:640px">
+        <div class="settings-section-title">Organisation Info</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Organisation Name</div><div class="settings-desc">Your registered company name</div></div>
+          <div class="settings-val" id="sOrgName">GP Bookkeeper</div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Domain</div><div class="settings-desc">Primary email domain</div></div>
+          <div class="settings-val" id="sOrgDomain">gpbookkeeper.com</div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Active Inboxes</div><div class="settings-desc">Shared mailboxes in this workspace</div></div>
+          <div class="settings-val" id="sInboxCount">—</div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Team Members</div><div class="settings-desc">Users with inbox access</div></div>
+          <div class="settings-val" id="sUserCount">—</div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Total Tags</div><div class="settings-desc">Labels defined across all inboxes</div></div>
+          <div class="settings-val" id="sTagCount">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API -->
+    <div class="tab-panel" id="stab-api">
+      <div class="panel" style="max-width:640px">
+        <div class="settings-section-title">API Access</div>
+        <div class="settings-row">
+          <div style="flex:1">
+            <div class="settings-label">API Key</div>
+            <div class="settings-desc">Used by the Hiver proxy. Keep this secret.</div>
+          </div>
+        </div>
+        <div class="api-key-wrap" style="margin-top:4px;margin-bottom:16px">
+          <input class="api-key-box" id="apiKeyBox" type="text" value="ad3f4963-••••••••-••••••••-••••••••" readonly/>
+          <button class="api-action-btn" id="apiRevealBtn" onclick="toggleApiKey()">Reveal</button>
+          <button class="api-action-btn" onclick="copyApiKey()">Copy</button>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Proxy Endpoint</div><div class="settings-desc">All API calls route through this</div></div>
+          <div class="settings-val" style="font-family:monospace;font-size:12px">/hiver-proxy/v1</div>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Rate Limit</div><div class="settings-desc">Requests per minute allowed</div></div>
+          <div class="settings-val">60 req/min</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inboxes -->
+    <div class="tab-panel" id="stab-inboxes">
+      <div class="panel">
+        <div class="settings-section-title">Configured Inboxes</div>
+        <div style="overflow-x:auto;max-height:480px;overflow-y:auto">
+          <table class="utbl" id="settingsInboxTbl">
+            <thead><tr>
+              <th>Inbox Name</th><th>Email</th><th>Type</th><th>Status</th>
+            </tr></thead>
+            <tbody id="settingsInboxBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Display -->
+    <div class="tab-panel" id="stab-display">
+      <div class="panel" style="max-width:540px">
+        <div class="settings-section-title">Display Preferences</div>
+        <div class="settings-row">
+          <div><div class="settings-label">Default Inbox</div><div class="settings-desc">Inbox selected on load</div></div>
+          <select class="settings-sel" id="dispDefaultInbox" onchange="saveDisplayPrefs()">
+            <option value="all">All Inboxes</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Items Per Page</div><div class="settings-desc">Rows shown in tables</div></div>
+          <select class="settings-sel" id="dispPerPage" onchange="saveDisplayPrefs()">
+            <option value="20">20</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">Date Format</div><div class="settings-desc">How dates are displayed</div></div>
+          <select class="settings-sel" id="dispDateFmt" onchange="saveDisplayPrefs()">
+            <option value="locale">MM/DD/YYYY</option>
+            <option value="iso">YYYY-MM-DD</option>
+            <option value="eu">DD/MM/YYYY</option>
+          </select>
+        </div>
+        <div id="dispSaveToast" class="save-toast">Preferences saved.</div>
+      </div>
+    </div>
+  </div><!-- /page-settings -->
+
+</div><!-- /appWrap -->
+
+<script>
+/* ═══════════════════════════════════════════
+   COLOURS & CONSTANTS
+═══════════════════════════════════════════ */
+const COLORS = ['#f97316','#4f8ef7','#22c55e','#a78bfa','#f06292','#fbbf24','#60a5fa','#34d399','#e879f9','#94a3b8'];
+const API_KEY_REAL = 'ad3f4963-5f2e8a1b-7c3d9e4f-1a2b3c4d'; // shown only on reveal
+
+/* ═══════════════════════════════════════════
+   LOADING PROGRESS  (LP alias for compat)
+═══════════════════════════════════════════ */
+const LoadingProgress = {
+  total: 25,
+  done: 0,
+  _pctEl: null,
+  _barEl: null,
+  _statusEl: null,
+  _init() {
+    if (!this._pctEl) {
+      this._pctEl    = document.getElementById('lsPct');
+      this._barEl    = document.getElementById('lsBar');
+      this._statusEl = document.getElementById('lsStatus');
+    }
+  },
+  _render() {
+    this._init();
+    const pct = Math.min(100, Math.round((this.done / this.total) * 100));
+    if (this._pctEl)    this._pctEl.textContent = pct + '%';
+    if (this._barEl)    this._barEl.style.width  = pct + '%';
+  },
+  setStatus(msg) {
+    this._init();
+    if (this._statusEl) this._statusEl.textContent = msg;
+  },
+  tick(msg) {
+    this.done = Math.min(this.total, this.done + 1);
+    if (msg) this.setStatus(msg);
+    this._render();
+  },
+  finish() {
+    this.done = this.total;
+    this._render();
+    setTimeout(() => {
+      const el = document.getElementById('loadingScreen');
+      if (el) {
+        el.classList.add('fade-out');
+        setTimeout(() => { el.style.display = 'none'; }, 520);
+      }
+    }, 400);
+  },
+  reset() {
+    this.done = 0;
+    this._render();
+  }
+};
+// LP short alias
+const LP = LoadingProgress;
+
+/* ═══════════════════════════════════════════
+   DATA STORES
+═══════════════════════════════════════════ */
+let allInboxes = [], allUsers = {}, allTags = {}, allConversations = [];
+let currentInboxId = 'all';
+let currentPage = 'overview';
+
+/* ═══════════════════════════════════════════
+   DATE FILTER STATE
+═══════════════════════════════════════════ */
+let dateRange = null; // { start: Date, stop: Date } | null
+
+function setPreset(preset) {
+  const now = new Date();
+  let start = null, stop = null;
+  if (preset === 'today') {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    stop  = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  } else if (preset === 'week') {
+    const day = now.getDay();
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, 0, 0, 0);
+    stop  = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - day), 23, 59, 59, 999);
+  } else if (preset === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+    stop  = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  } else if (preset === '30d') {
+    start = new Date(now - 30 * 86400000);
+    stop  = now;
+  } else if (preset === '90d') {
+    start = new Date(now - 90 * 86400000);
+    stop  = now;
+  } else {
+    dateRange = null;
+    _updateFilterButtons('all');
+    loadAll();
+    return;
+  }
+  dateRange = { start, stop };
+  _updateFilterButtons(preset);
+  document.getElementById('customRange').classList.remove('visible');
+  document.getElementById('dfCustomBtn').classList.remove('active');
+  loadAll();
+}
+
+function toggleCustomRange() {
+  const panel = document.getElementById('customRange');
+  const btn   = document.getElementById('dfCustomBtn');
+  const isOpen = panel.classList.contains('visible');
+  if (isOpen) {
+    panel.classList.remove('visible');
+    btn.classList.remove('active');
+  } else {
+    panel.classList.add('visible');
+    btn.classList.add('active');
+    _updateFilterButtons('custom');
+  }
+}
+
+function applyCustomRange() {
+  const from = document.getElementById('dfFrom').value;
+  const to   = document.getElementById('dfTo').value;
+  if (!from && !to) { dateRange = null; loadAll(); return; }
+  const start = from ? new Date(from + 'T00:00:00') : null;
+  const stop  = to   ? new Date(to   + 'T23:59:59') : null;
+  dateRange = (start || stop) ? { start, stop } : null;
+  loadAll();
+}
+
+function _updateFilterButtons(active) {
+  const presets = ['today','week','month','30d','90d','all'];
+  presets.forEach(p => {
+    const btn = document.querySelector(`.df-btn[onclick="setPreset('${p}')"]`);
+    if (btn) btn.classList.toggle('active', p === active);
+  });
+  if (active !== 'custom') {
+    document.getElementById('dfCustomBtn').classList.remove('active');
+    document.getElementById('customRange').classList.remove('visible');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   HIVER API (via proxy)
+═══════════════════════════════════════════ */
+async function hiver(path) {
+  const r = await fetch(`/hiver-proxy/v1${path}`);
+  if (!r.ok) throw new Error(`Hiver ${r.status}: ${path}`);
+  return r.json();
+}
+
+async function hiverAll(path, key, isConvPath) {
+  let results = [], next = null;
+  let basePath = path;
+  if (isConvPath && dateRange && dateRange.start) {
+    const ts = Math.floor(dateRange.start.getTime() / 1000);
+    basePath = path + `&created_after=${ts}`;
+  }
+  do {
+    const url = next ? `${basePath}&next_page=${encodeURIComponent(next)}` : basePath;
+    const d = await hiver(url);
+    results = results.concat(d.data?.results || []);
+    next = d.data?.pagination?.next_page || null;
+  } while (next && results.length < 1000);
+  return results;
+}
+
+/* ═══════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════ */
+function initials(name) {
+  return (name || '').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+function workloadColor(pct) {
+  if (pct < 30) return '#22c55e';
+  if (pct < 60) return '#f97316';
+  return '#ef4444';
+}
+
+/* ═══════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════ */
+function navigate(page) {
+  currentPage = page;
+  document.querySelectorAll('.sb-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.page === page);
+  });
+  document.querySelectorAll('.page').forEach(el => {
+    el.classList.toggle('active', el.id === 'page-' + page);
+  });
+  const titles = { overview: 'Overview', team: 'Team / Agent Performance', reports: 'Reports', settings: 'Settings' };
+  document.getElementById('hdrTitle').textContent = titles[page] || page;
+  if (page === 'team')     renderTeamPage();
+  if (page === 'reports')  renderReportsPage();
+  if (page === 'settings') renderSettingsPage();
+}
+
+/* ═══════════════════════════════════════════
+   SIDEBAR COLLAPSE
+═══════════════════════════════════════════ */
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const wrap    = document.getElementById('appWrap');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  wrap.classList.toggle('sb-collapsed', collapsed);
+  try { localStorage.setItem('hiver_sb_collapsed', collapsed ? '1' : '0'); } catch(e) {}
+}
+
+function initSidebarState() {
+  try {
+    const c = localStorage.getItem('hiver_sb_collapsed');
+    if (c === '1') {
+      document.getElementById('sidebar').classList.add('collapsed');
+      document.getElementById('appWrap').classList.add('sb-collapsed');
+    }
+  } catch(e) {}
+}
+
+/* ═══════════════════════════════════════════
+   INBOX SWITCH
+═══════════════════════════════════════════ */
+function switchInbox(id) {
+  currentInboxId = id;
+  renderAll();
+}
+
+function getFilteredConvs() {
+  if (currentInboxId === 'all') return allConversations;
+  return allConversations.filter(c => String(c._inbox_id) === String(currentInboxId));
+}
+
+/* ═══════════════════════════════════════════
+   OVERVIEW — renderAll
+═══════════════════════════════════════════ */
+function renderConversations() {
+  const status = document.getElementById('statusFilter').value;
+  let convs = getFilteredConvs();
+  if (status !== 'all') convs = convs.filter(c => c.status === status);
+
+  document.getElementById('convBadge').textContent = convs.length;
+  const inbox = allInboxes.find(i => String(i.id) === String(currentInboxId));
+  document.getElementById('convTitle').textContent = inbox ? `${inbox.display_name} — Conversations` : 'All Conversations';
+
+  document.getElementById('convList').innerHTML = convs.slice(0, 50).map(c => {
+    const assignee = c.assignee?.assignee_id
+      ? allUsers[c.assignee.assignee_id] || { first_name: 'User', last_name: c.assignee.assignee_id }
+      : null;
+    const tags = (c.tag_ids || []).map(tid => allTags[tid]).filter(Boolean).slice(0, 3);
+    return `
+      <div class="conv-item">
+        <div class="conv-top">
+          <span class="conv-id">#${c.id}</span>
+          <span class="status-badge status-${c.status || 'open'}">${c.status || 'open'}</span>
+          <span class="conv-assignee">${assignee ? `${assignee.first_name} ${assignee.last_name}` : '— unassigned'}</span>
+        </div>
+        <div class="conv-tags">${tags.map(t => `<span class="tag-pill" style="background:${t.color_code}">${t.name}</span>`).join('')}</div>
+      </div>`;
+  }).join('') || '<div class="empty">No conversations found</div>';
+}
+
+function renderAll() {
+  const convs = getFilteredConvs();
+  const open       = convs.filter(c => c.status === 'open').length;
+  const pending    = convs.filter(c => c.status === 'pending').length;
+  const closed     = convs.filter(c => c.status === 'closed').length;
+  const unassigned = convs.filter(c => !c.assignee || !c.assignee.assignee_id).length;
+  const totalTags  = Object.keys(allTags).length;
+
+  document.getElementById('hsub').textContent =
+    `GP Bookkeeper · ${allInboxes.length} inboxes · ${allConversations.length} total conversations`;
+
+  // 6 stats
+  document.getElementById('stats').innerHTML = `
+    <div class="sc"><div class="sc-lbl">Open</div><div class="sc-val c-or">${open}</div><div class="sc-sub">need attention</div></div>
+    <div class="sc"><div class="sc-lbl">Pending</div><div class="sc-val c-bl">${pending}</div><div class="sc-sub">awaiting reply</div></div>
+    <div class="sc"><div class="sc-lbl">Closed</div><div class="sc-val c-gr">${closed}</div><div class="sc-sub">resolved</div></div>
+    <div class="sc"><div class="sc-lbl">Unassigned</div><div class="sc-val ${unassigned>0?'c-rd':'c-gr'}">${unassigned}</div><div class="sc-sub">no owner</div></div>
+    <div class="sc"><div class="sc-lbl">Inboxes</div><div class="sc-val c-pu">${allInboxes.length}</div><div class="sc-sub">active shared mailboxes</div></div>
+    <div class="sc"><div class="sc-lbl">Tags</div><div class="sc-val c-yw">${totalTags}</div><div class="sc-sub">across all inboxes</div></div>
+  `;
+
+  // Status breakdown
+  const total = convs.length || 1;
+  document.getElementById('statusBreakdown').innerHTML = `
+    <div class="bars">
+      <div class="br"><div class="bl">Open</div><div class="bt"><div class="bf" style="width:${open/total*100}%;background:#f97316"></div></div><div class="bv">${open}</div></div>
+      <div class="br"><div class="bl">Pending</div><div class="bt"><div class="bf" style="width:${pending/total*100}%;background:#4f8ef7"></div></div><div class="bv">${pending}</div></div>
+      <div class="br"><div class="bl">Closed</div><div class="bt"><div class="bf" style="width:${closed/total*100}%;background:#22c55e"></div></div><div class="bv">${closed}</div></div>
+      <div class="br"><div class="bl">Unassigned</div><div class="bt"><div class="bf" style="width:${unassigned/total*100}%;background:#ef4444"></div></div><div class="bv">${unassigned}</div></div>
+    </div>
+  `;
+
+  // Assignee workload
+  const assigneeMap = {};
+  convs.forEach(c => {
+    const aid = c.assignee?.assignee_id;
+    if (!aid) return;
+    if (!assigneeMap[aid]) assigneeMap[aid] = { open:0, pending:0, closed:0 };
+    assigneeMap[aid][c.status || 'open']++;
+  });
+  const sortedAssignees = Object.entries(assigneeMap)
+    .sort((a, b) => (b[1].open + b[1].pending) - (a[1].open + a[1].pending));
+  document.getElementById('assigneeCount').textContent = sortedAssignees.length;
+  document.getElementById('assigneeList').innerHTML = sortedAssignees.slice(0, 8).map(([aid, stats], i) => {
+    const u = allUsers[aid] || { first_name:'User', last_name:aid };
+    const name = `${u.first_name} ${u.last_name}`;
+    const tot  = stats.open + stats.pending + stats.closed;
+    return `
+      <div class="assignee-row">
+        <div class="av" style="background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(name)}</div>
+        <div class="a-name">${name}</div>
+        <div style="display:flex;gap:10px">
+          <div class="a-stat c-or" title="Open">${stats.open}</div>
+          <div class="a-stat c-bl" title="Pending">${stats.pending}</div>
+          <div class="a-stat c-gr" title="Closed">${stats.closed}</div>
+        </div>
+        <div style="font-size:11px;color:#4b5563">${tot} total</div>
+      </div>`;
+  }).join('') || '<div class="empty">No assignments</div>';
+
+  // Tag bars
+  const tagUsage = {};
+  convs.forEach(c => (c.tag_ids || []).forEach(tid => { tagUsage[tid] = (tagUsage[tid]||0)+1; }));
+  const sortedTags = Object.entries(tagUsage).sort((a,b) => b[1]-a[1]);
+  const maxTag = sortedTags[0]?.[1] || 1;
+  document.getElementById('tagCount').textContent = sortedTags.length;
+  document.getElementById('tagBars').innerHTML = sortedTags.slice(0,12).map(([tid,count]) => {
+    const tag = allTags[tid] || { name:`Tag ${tid}`, color_code:'#6b7280' };
+    return `<div class="br">
+      <div class="bl" title="${tag.name}">${tag.name}</div>
+      <div class="bt"><div class="bf" style="width:${count/maxTag*100}%;background:${tag.color_code}"></div></div>
+      <div class="bv">${count}</div>
+    </div>`;
+  }).join('') || '<div class="empty">No tags in use</div>';
+
+  // Tag cloud
+  document.getElementById('tagCloud').innerHTML = Object.values(allTags).slice(0,40).map(t =>
+    `<span class="tag-item" style="background:${t.color_code}20;border:1px solid ${t.color_code}50;color:${t.color_code}">${t.name}</span>`
+  ).join('') || '<div class="empty">No tags</div>';
+
+  // Inbox cards
+  document.getElementById('inboxCount').textContent = allInboxes.length;
+  document.getElementById('inboxGrid').innerHTML = allInboxes.map((inbox,i) => {
+    const ic  = allConversations.filter(c => String(c._inbox_id) === String(inbox.id));
+    const io  = ic.filter(c => c.status === 'open').length;
+    const ip  = ic.filter(c => c.status === 'pending').length;
+    const icl = ic.filter(c => c.status === 'closed').length;
+    const isActive = String(currentInboxId) === String(inbox.id);
+    return `
+      <div class="inbox-card ${isActive?'active':''}" onclick="document.getElementById('inboxSel').value='${inbox.id}';switchInbox('${inbox.id}')">
+        <div class="ic-name">${inbox.display_name}</div>
+        <div class="ic-email">${inbox.email}</div>
+        <div class="ic-stats">
+          <span class="ic-stat c-or">⬤ ${io} open</span>
+          <span class="ic-stat c-bl" style="margin-left:6px">⬤ ${ip} pending</span>
+          <span class="ic-stat c-gr" style="margin-left:6px">⬤ ${icl} closed</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Users table
+  const userWork = {};
+  allConversations.forEach(c => {
+    const aid = c.assignee?.assignee_id;
+    if (!aid) return;
+    if (!userWork[aid]) userWork[aid] = { open:0, pending:0, closed:0 };
+    userWork[aid][c.status || 'open']++;
+  });
+  const users = Object.values(allUsers);
+  document.getElementById('userCount').textContent = users.length;
+  document.getElementById('userBody').innerHTML = users.sort((a,b) => {
+    const aw = userWork[a.id]||{}, bw = userWork[b.id]||{};
+    return ((bw.open||0)+(bw.pending||0)) - ((aw.open||0)+(aw.pending||0));
+  }).map((u,i) => {
+    const w = userWork[u.id] || { open:0, pending:0, closed:0 };
+    const tot = w.open + w.pending + w.closed;
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div class="av" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(`${u.first_name} ${u.last_name}`)}</div>
+        <span style="color:#d1d5db;font-weight:600">${u.first_name} ${u.last_name}</span>
+      </div></td>
+      <td style="color:#6b7280">${u.email}</td>
+      <td style="color:#f97316;font-weight:700">${w.open}</td>
+      <td style="color:#4f8ef7;font-weight:700">${w.pending}</td>
+      <td style="color:#22c55e;font-weight:700">${w.closed}</td>
+      <td style="color:#d1d5db;font-weight:700">${tot}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty">No users</td></tr>';
+
+  renderConversations();
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 2 — TEAM
+═══════════════════════════════════════════ */
+let agentSortCol = 'open', agentSortDir = 'desc';
+
+function buildAgentData() {
+  const map = {};
+  Object.values(allUsers).forEach(u => {
+    map[u.id] = { user: u, inboxIds: new Set(), open:0, pending:0, closed:0 };
+  });
+  allConversations.forEach(c => {
+    const aid = c.assignee?.assignee_id;
+    if (!aid || !map[aid]) return;
+    map[aid][c.status || 'open']++;
+  });
+  allInboxes.forEach(inbox => {
+    (inbox._userIds || []).forEach(uid => {
+      if (map[uid]) map[uid].inboxIds.add(String(inbox.id));
+    });
+  });
+  return Object.values(map);
+}
+
+function renderTeamPage() {
+  const search      = (document.getElementById('teamSearch')?.value || '').toLowerCase();
+  const inboxFilter = document.getElementById('teamInboxFilter')?.value || 'all';
+
+  let agents = buildAgentData().filter(a => {
+    const name  = `${a.user.first_name} ${a.user.last_name}`.toLowerCase();
+    const email = (a.user.email || '').toLowerCase();
+    const matchSearch = !search || name.includes(search) || email.includes(search);
+    const matchInbox  = inboxFilter === 'all' || a.inboxIds.has(inboxFilter);
+    return matchSearch && matchInbox;
+  });
+
+  // Agent cards grid (3 cols, max 2 inbox badges visible)
+  document.getElementById('agentGrid').innerHTML = agents.map((a, i) => {
+    const name    = `${a.user.first_name} ${a.user.last_name}`;
+    const total   = a.open + a.pending + a.closed;
+    const wPct    = total > 0 ? Math.round((a.open / total) * 100) : 0;
+    const wColor  = workloadColor(wPct);
+    const inboxes = allInboxes.filter(inb => a.inboxIds.has(String(inb.id)));
+    return `
+      <div class="agent-card">
+        <div class="agent-head">
+          <div class="agent-av" style="background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(name)}</div>
+          <div>
+            <div class="agent-name">${name}</div>
+            <div class="agent-email">${a.user.email || '—'}</div>
+          </div>
+        </div>
+        <div class="agent-inboxes">
+          ${inboxes.slice(0,2).map(inb => `<span class="inbox-badge">${inb.display_name}</span>`).join('')}
+          ${inboxes.length > 2 ? `<span class="inbox-badge">+${inboxes.length-2} more</span>` : ''}
+          ${inboxes.length === 0 ? '<span style="font-size:11px;color:#4b5563">No inboxes</span>' : ''}
+        </div>
+        <div class="agent-stats">
+          <div class="agent-stat">
+            <div class="agent-stat-val c-or">${a.open}</div>
+            <div class="agent-stat-lbl">Open</div>
+          </div>
+          <div class="agent-stat">
+            <div class="agent-stat-val c-bl">${a.pending}</div>
+            <div class="agent-stat-lbl">Pending</div>
+          </div>
+          <div class="agent-stat">
+            <div class="agent-stat-val c-gr">${a.closed}</div>
+            <div class="agent-stat-lbl">Closed</div>
+          </div>
+        </div>
+        <div class="workload-bar-wrap">
+          <div class="workload-lbl">
+            <span>Workload</span>
+            <span style="color:${wColor};font-weight:700">${wPct}%</span>
+          </div>
+          <div class="workload-track">
+            <div class="workload-fill" style="width:${wPct}%;background:${wColor}"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join('') || '<div class="empty" style="grid-column:1/-1">No agents found</div>';
+
+  renderAgentTable();
+}
+
+function sortAgentTable(col) {
+  if (agentSortCol === col) {
+    agentSortDir = agentSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    agentSortCol = col;
+    agentSortDir = 'desc';
+  }
+  document.querySelectorAll('#agentTbl th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.dataset.col === col) {
+      th.classList.add(agentSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+  renderAgentTable();
+}
+
+function renderAgentTable() {
+  const tblSearch = (document.getElementById('agentTableSearch')?.value || '').toLowerCase();
+  let agents = buildAgentData().filter(a => {
+    const name  = `${a.user.first_name} ${a.user.last_name}`.toLowerCase();
+    const email = (a.user.email || '').toLowerCase();
+    return !tblSearch || name.includes(tblSearch) || email.includes(tblSearch);
+  });
+
+  agents.sort((a, b) => {
+    let va, vb;
+    switch (agentSortCol) {
+      case 'name':    va = `${a.user.first_name} ${a.user.last_name}`; vb = `${b.user.first_name} ${b.user.last_name}`; break;
+      case 'email':   va = a.user.email||''; vb = b.user.email||''; break;
+      case 'open':    va = a.open;    vb = b.open;    break;
+      case 'pending': va = a.pending; vb = b.pending; break;
+      case 'closed':  va = a.closed;  vb = b.closed;  break;
+      case 'total':   va = a.open+a.pending+a.closed; vb = b.open+b.pending+b.closed; break;
+      case 'workload': {
+        const ta = a.open+a.pending+a.closed, tb = b.open+b.pending+b.closed;
+        va = ta>0 ? a.open/ta : 0; vb = tb>0 ? b.open/tb : 0; break;
+      }
+      default: va = 0; vb = 0;
+    }
+    if (typeof va === 'string') return agentSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    return agentSortDir === 'asc' ? va-vb : vb-va;
+  });
+
+  document.getElementById('agentTblBody').innerHTML = agents.map((a, i) => {
+    const name    = `${a.user.first_name} ${a.user.last_name}`;
+    const total   = a.open + a.pending + a.closed;
+    const wPct    = total > 0 ? Math.round((a.open / total) * 100) : 0;
+    const wColor  = workloadColor(wPct);
+    const inboxes = allInboxes.filter(inb => a.inboxIds.has(String(inb.id)));
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <div class="av" style="width:24px;height:24px;font-size:9px;background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(name)}</div>
+        <span style="color:#d1d5db;font-weight:600">${name}</span>
+      </div></td>
+      <td style="color:#6b7280">${a.user.email||'—'}</td>
+      <td style="color:#f97316;font-weight:700">${a.open}</td>
+      <td style="color:#4f8ef7;font-weight:700">${a.pending}</td>
+      <td style="color:#22c55e;font-weight:700">${a.closed}</td>
+      <td style="color:#d1d5db;font-weight:700">${total}</td>
+      <td><span style="color:${wColor};font-weight:700">${wPct}%</span></td>
+      <td style="color:#6b7280;font-size:11px">${inboxes.map(inb=>inb.display_name).join(', ')||'—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty">No agents</td></tr>';
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 3 — REPORTS
+═══════════════════════════════════════════ */
+let convReportSort  = { col:'total', dir:'desc' };
+let tagReportSort   = { col:'count', dir:'desc' };
+let inboxReportSort = { col:'total', dir:'desc' };
+
+function switchReportTab(tab) {
+  document.querySelectorAll('#page-reports .tab-btn').forEach((btn,i) => {
+    const tabs = ['conv','tags','inbox'];
+    btn.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('#page-reports .tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'rtab-' + tab);
+  });
+}
+
+function renderReportsPage() {
+  renderConvReport();
+  renderTagReport();
+  renderInboxReport();
+}
+
+// — Conversation Report —
+function sortConvReport(col) {
+  convReportSort.dir = convReportSort.col === col ? (convReportSort.dir==='asc'?'desc':'asc') : 'desc';
+  convReportSort.col = col;
+  renderConvReport();
+}
+
+function renderConvReport() {
+  const total      = allConversations.length;
+  const open       = allConversations.filter(c => c.status==='open').length;
+  const unassigned = allConversations.filter(c => !c.assignee?.assignee_id).length;
+  document.getElementById('rTotalConv').textContent      = total;
+  document.getElementById('rOpenRate').textContent       = total > 0 ? (open/total*100).toFixed(1)+'%' : '—';
+  document.getElementById('rUnassignedRate').textContent = total > 0 ? (unassigned/total*100).toFixed(1)+'%' : '—';
+
+  const search = (document.getElementById('convReportSearch')?.value || '').toLowerCase();
+  let rows = allInboxes.map(inbox => {
+    const ic = allConversations.filter(c => String(c._inbox_id)===String(inbox.id));
+    const o  = ic.filter(c=>c.status==='open').length;
+    const p  = ic.filter(c=>c.status==='pending').length;
+    const cl = ic.filter(c=>c.status==='closed').length;
+    const u  = ic.filter(c=>!c.assignee?.assignee_id).length;
+    const t  = ic.length;
+    return { name:inbox.display_name, open:o, pending:p, closed:cl, unassigned:u, total:t, openPct: t>0?(o/t*100):0 };
+  }).filter(r => !search || r.name.toLowerCase().includes(search));
+
+  rows.sort((a,b) => {
+    const va = a[convReportSort.col], vb = b[convReportSort.col];
+    if (typeof va==='string') return convReportSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+    return convReportSort.dir==='asc'?va-vb:vb-va;
+  });
+
+  document.getElementById('convReportBody').innerHTML = rows.map(r => `<tr>
+    <td style="color:#d1d5db;font-weight:600">${r.name}</td>
+    <td style="color:#f97316;font-weight:700">${r.open}</td>
+    <td style="color:#4f8ef7;font-weight:700">${r.pending}</td>
+    <td style="color:#22c55e;font-weight:700">${r.closed}</td>
+    <td style="color:#ef4444;font-weight:700">${r.unassigned}</td>
+    <td style="color:#d1d5db;font-weight:700">${r.total}</td>
+    <td style="color:${workloadColor(r.openPct)};font-weight:700">${r.openPct.toFixed(1)}%</td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty">No data</td></tr>';
+}
+
+function exportConvCSV() {
+  const rows = allInboxes.map(inbox => {
+    const ic = allConversations.filter(c => String(c._inbox_id)===String(inbox.id));
+    const o  = ic.filter(c=>c.status==='open').length;
+    const p  = ic.filter(c=>c.status==='pending').length;
+    const cl = ic.filter(c=>c.status==='closed').length;
+    const u  = ic.filter(c=>!c.assignee?.assignee_id).length;
+    const t  = ic.length;
+    return [inbox.display_name, o, p, cl, u, t, t>0?(o/t*100).toFixed(1)+'%':'0%'];
+  });
+  const csv = ['Inbox,Open,Pending,Closed,Unassigned,Total,Open%', ...rows.map(r=>r.join(','))].join('\n');
+  downloadBlob(csv, 'conversation-report.csv', 'text/csv');
+}
+
+// — Tag Analysis —
+function sortTagReport(col) {
+  tagReportSort.dir = tagReportSort.col===col ? (tagReportSort.dir==='asc'?'desc':'asc') : 'desc';
+  tagReportSort.col = col;
+  renderTagReport();
+}
+
+function renderTagReport() {
+  const search = (document.getElementById('tagReportSearch')?.value || '').toLowerCase();
+  const tagUsage = {};
+  allConversations.forEach(c => (c.tag_ids||[]).forEach(tid => { tagUsage[tid]=(tagUsage[tid]||0)+1; }));
+  const totalTagged = Object.values(tagUsage).reduce((s,v)=>s+v, 0) || 1;
+
+  let rows = Object.values(allTags).map(t => ({
+    id: t.id, name: t.name, color: t.color_code, count: tagUsage[t.id]||0,
+    pct: ((tagUsage[t.id]||0)/totalTagged*100)
+  })).filter(r => !search || r.name.toLowerCase().includes(search));
+
+  rows.sort((a,b) => {
+    const va = a[tagReportSort.col], vb = b[tagReportSort.col];
+    if (typeof va==='string') return tagReportSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+    return tagReportSort.dir==='asc'?va-vb:vb-va;
+  });
+
+  document.getElementById('tagReportCount').textContent = `${rows.length} tags`;
+  document.getElementById('tagReportBody').innerHTML = rows.map(r => `<tr>
+    <td style="color:#d1d5db;font-weight:600">${r.name}</td>
+    <td><div style="width:16px;height:16px;border-radius:50%;background:${r.color};display:inline-block;border:1px solid rgba(255,255,255,.12)"></div></td>
+    <td style="color:#d1d5db;font-weight:700">${r.count}</td>
+    <td style="color:#9ca3af">${r.pct.toFixed(1)}%</td>
+  </tr>`).join('') || '<tr><td colspan="4" class="empty">No tags</td></tr>';
+}
+
+function exportTagCSV() {
+  const tagUsage = {};
+  allConversations.forEach(c => (c.tag_ids||[]).forEach(tid => { tagUsage[tid]=(tagUsage[tid]||0)+1; }));
+  const totalTagged = Object.values(tagUsage).reduce((s,v)=>s+v, 0) || 1;
+  const rows = Object.values(allTags).sort((a,b) => (tagUsage[b.id]||0)-(tagUsage[a.id]||0)).map(t => {
+    const cnt = tagUsage[t.id]||0;
+    return [t.name, t.color_code, cnt, (cnt/totalTagged*100).toFixed(1)+'%'];
+  });
+  const csv = ['Tag Name,Color,Count,% of Tagged', ...rows.map(r=>r.join(','))].join('\n');
+  downloadBlob(csv, 'tag-analysis.csv', 'text/csv');
+}
+
+// — Inbox Report —
+function sortInboxReport(col) {
+  inboxReportSort.dir = inboxReportSort.col===col ? (inboxReportSort.dir==='asc'?'desc':'asc') : 'desc';
+  inboxReportSort.col = col;
+  renderInboxReport();
+}
+
+function healthDot(openPct) {
+  if (openPct < 30) return '<span title="Healthy" style="color:#22c55e">&#9679;</span>';
+  if (openPct < 60) return '<span title="Warning" style="color:#f97316">&#9679;</span>';
+  return '<span title="Critical" style="color:#ef4444">&#9679;</span>';
+}
+
+function renderInboxReport() {
+  const search = (document.getElementById('inboxReportSearch')?.value || '').toLowerCase();
+  let rows = allInboxes.map(inbox => {
+    const ic = allConversations.filter(c => String(c._inbox_id)===String(inbox.id));
+    const o  = ic.filter(c=>c.status==='open').length;
+    const cl = ic.filter(c=>c.status==='closed').length;
+    const t  = ic.length;
+    const openPct = t>0?(o/t*100):0;
+    return { name:inbox.display_name, email:inbox.email||'—', channel:'Email', open:o, closed:cl, total:t, health:openPct };
+  }).filter(r => !search || r.name.toLowerCase().includes(search) || r.email.toLowerCase().includes(search));
+
+  rows.sort((a,b) => {
+    const va = a[inboxReportSort.col], vb = b[inboxReportSort.col];
+    if (typeof va==='string') return inboxReportSort.dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+    return inboxReportSort.dir==='asc'?va-vb:vb-va;
+  });
+
+  document.getElementById('inboxReportBody').innerHTML = rows.map(r => `<tr>
+    <td style="color:#d1d5db;font-weight:600">${r.name}</td>
+    <td style="color:#6b7280;font-size:11px">${r.email}</td>
+    <td style="color:#9ca3af">${r.channel}</td>
+    <td style="color:#f97316;font-weight:700">${r.open}</td>
+    <td style="color:#22c55e;font-weight:700">${r.closed}</td>
+    <td style="color:#d1d5db;font-weight:700">${r.total}</td>
+    <td>${healthDot(r.health)}</td>
+  </tr>`).join('') || '<tr><td colspan="7" class="empty">No inboxes</td></tr>';
+}
+
+function exportInboxCSV() {
+  const rows = allInboxes.map(inbox => {
+    const ic = allConversations.filter(c => String(c._inbox_id)===String(inbox.id));
+    const o  = ic.filter(c=>c.status==='open').length;
+    const cl = ic.filter(c=>c.status==='closed').length;
+    const t  = ic.length;
+    const hp = t>0?(o/t*100).toFixed(0):0;
+    const health = hp<30?'Healthy':hp<60?'Warning':'Critical';
+    return [inbox.display_name, inbox.email||'', 'Email', o, cl, t, health];
+  });
+  const csv = ['Inbox Name,Email,Channel,Open,Closed,Total,Health', ...rows.map(r=>r.join(','))].join('\n');
+  downloadBlob(csv, 'inbox-report.csv', 'text/csv');
+}
+
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ═══════════════════════════════════════════
+   PAGE 4 — SETTINGS
+═══════════════════════════════════════════ */
+let apiKeyRevealed = false;
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('#page-settings .tab-btn').forEach((btn,i) => {
+    const tabs = ['general','api','inboxes','display'];
+    btn.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('#page-settings .tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'stab-' + tab);
+  });
+}
+
+function toggleApiKey() {
+  apiKeyRevealed = !apiKeyRevealed;
+  const box = document.getElementById('apiKeyBox');
+  const btn = document.getElementById('apiRevealBtn');
+  box.value = apiKeyRevealed ? API_KEY_REAL : 'ad3f4963-••••••••-••••••••-••••••••';
+  btn.textContent = apiKeyRevealed ? 'Hide' : 'Reveal';
+}
+
+function copyApiKey() {
+  const val = apiKeyRevealed ? API_KEY_REAL : document.getElementById('apiKeyBox').value;
+  navigator.clipboard.writeText(val).catch(() => {});
+}
+
+function saveDisplayPrefs() {
+  try {
+    const prefs = {
+      defaultInbox: document.getElementById('dispDefaultInbox').value,
+      perPage:      document.getElementById('dispPerPage').value,
+      dateFmt:      document.getElementById('dispDateFmt').value,
+    };
+    localStorage.setItem('hiver_display_prefs', JSON.stringify(prefs));
+  } catch(e) {}
+  const toast = document.getElementById('dispSaveToast');
+  if (toast) {
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
+  }
+}
+
+function loadDisplayPrefs() {
+  try {
+    const raw = localStorage.getItem('hiver_display_prefs');
+    if (!raw) return;
+    const prefs = JSON.parse(raw);
+    if (prefs.defaultInbox) document.getElementById('dispDefaultInbox').value = prefs.defaultInbox;
+    if (prefs.perPage)      document.getElementById('dispPerPage').value      = prefs.perPage;
+    if (prefs.dateFmt)      document.getElementById('dispDateFmt').value      = prefs.dateFmt;
+  } catch(e) {}
+}
+
+function renderSettingsPage() {
+  document.getElementById('sInboxCount').textContent = allInboxes.length || '—';
+  document.getElementById('sUserCount').textContent  = Object.keys(allUsers).length || '—';
+  document.getElementById('sTagCount').textContent   = Object.keys(allTags).length || '—';
+
+  // Inboxes table
+  document.getElementById('settingsInboxBody').innerHTML = allInboxes.map(inbox => {
+    return `<tr>
+      <td style="color:#d1d5db;font-weight:600">${inbox.display_name}</td>
+      <td style="color:#6b7280;font-size:11px">${inbox.email||'—'}</td>
+      <td style="color:#9ca3af">Email</td>
+      <td><span class="status-badge status-open">Active</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty">No inboxes loaded</td></tr>';
+
+  // Populate default inbox dropdown
+  const sel = document.getElementById('dispDefaultInbox');
+  if (sel) {
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="all">All Inboxes</option>' +
+      allInboxes.map(i => `<option value="${i.id}">${i.display_name}</option>`).join('');
+    if (currentVal) sel.value = currentVal;
+  }
+}
+
+/* ═══════════════════════════════════════════
+   TEAM INBOX FILTER POPULATE
+═══════════════════════════════════════════ */
+function populateTeamInboxFilter() {
+  const sel = document.getElementById('teamInboxFilter');
+  if (!sel) return;
+  sel.innerHTML = '<option value="all">All Inboxes</option>' +
+    allInboxes.map(i => `<option value="${i.id}">${i.display_name}</option>`).join('');
+}
+
+/* ═══════════════════════════════════════════
+   LOAD ALL DATA
+═══════════════════════════════════════════ */
+async function loadAll() {
+  document.getElementById('lb').classList.add('on');
+  LoadingProgress.reset();
+  LoadingProgress.setStatus('Fetching inboxes...');
+  const lsEl = document.getElementById('loadingScreen');
+  if (lsEl) { lsEl.style.display='flex'; lsEl.classList.remove('fade-out'); lsEl.style.opacity=''; }
+
+  try {
+    allInboxes = await hiverAll('/inboxes?limit=100', 'results', false);
+    LoadingProgress.tick();
+    LoadingProgress.setStatus('Loading inboxes...');
+
+    const perPhase = Math.min(allInboxes.length, 12);
+    LoadingProgress.total = 1 + perPhase + perPhase;
+
+    // Populate inbox selector
+    const sel = document.getElementById('inboxSel');
+    sel.innerHTML = '<option value="all">All Inboxes</option>' +
+      allInboxes.map(i => `<option value="${i.id}">${i.display_name}</option>`).join('');
+
+    // Load users + tags per inbox
+    allUsers = {}; allTags = {};
+    LoadingProgress.setStatus('Fetching users & tags...');
+    await Promise.all(allInboxes.map(async inbox => {
+      try {
+        const [users, tags] = await Promise.all([
+          hiverAll(`/inboxes/${inbox.id}/users?limit=100`, 'results', false),
+          hiverAll(`/inboxes/${inbox.id}/tags?limit=100`, 'results', false)
+        ]);
+        inbox._userIds = users.map(u => u.id);
+        users.forEach(u => { allUsers[u.id] = u; });
+        tags.forEach(t  => { allTags[t.id]  = t; });
+      } catch(e) {}
+      LoadingProgress.tick();
+    }));
+
+    // Load conversations per inbox
+    allConversations = [];
+    LoadingProgress.setStatus('Fetching conversations...');
+    await Promise.all(allInboxes.map(async inbox => {
+      try {
+        const convs = await hiverAll(`/inboxes/${inbox.id}/conversations?limit=100`, 'results', true);
+        convs.forEach(c => { c._inbox_id = inbox.id; });
+        allConversations = allConversations.concat(convs);
+      } catch(e) {}
+      LoadingProgress.tick();
+    }));
+
+    LoadingProgress.setStatus('Rendering dashboard...');
+    populateTeamInboxFilter();
+    renderAll();
+
+    // If on a non-overview page, re-render it
+    if (currentPage !== 'overview') navigate(currentPage);
+
+    LoadingProgress.finish();
+  } catch(e) {
+    console.error('[Hiver]', e);
+    LoadingProgress.finish();
+    document.getElementById('stats').innerHTML = `
+      <div style="grid-column:1/-1;background:#161b27;border:1px solid rgba(239,68,68,.3);border-radius:11px;padding:20px">
+        <div style="color:#ef4444;font-weight:700;margin-bottom:6px">&#9888; Failed to load</div>
+        <div style="color:#6b7280;font-size:12px">${e.message}</div>
+        <button onclick="loadAll()" style="margin-top:10px;background:#1e2230;border:1px solid #2d3348;color:#9ca3af;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">&#8635; Retry</button>
+      </div>`;
+  } finally {
+    document.getElementById('lb').classList.remove('on');
+  }
+}
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+initSidebarState();
+loadDisplayPrefs();
+loadAll();
+</script>
+</body>
+</html>

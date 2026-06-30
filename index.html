@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operations Hub</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 28px 40px;
+      border-bottom: 1px solid #1e2230;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #4f6ef7, #a78bfa);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg { width: 20px; height: 20px; }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f0f2ff;
+      letter-spacing: -0.3px;
+    }
+
+    .logo-sub {
+      font-size: 12px;
+      color: #6b7280;
+      font-weight: 400;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: #22c55e;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 52px;
+    }
+
+    .hero h1 {
+      font-size: 36px;
+      font-weight: 800;
+      color: #f0f2ff;
+      letter-spacing: -0.8px;
+      margin-bottom: 10px;
+    }
+
+    .hero p {
+      font-size: 15px;
+      color: #6b7280;
+      max-width: 420px;
+      line-height: 1.6;
+    }
+
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(2, 320px);
+      gap: 20px;
+    }
+
+    @media (max-width: 700px) {
+      .tiles { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 26px; }
+    }
+
+    .tile {
+      background: #161b27;
+      border: 1px solid #1e2230;
+      border-radius: 16px;
+      padding: 28px 28px 24px;
+      cursor: pointer;
+      text-decoration: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tile::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.2s;
+      border-radius: 16px;
+    }
+
+    .tile:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    }
+
+    .tile:hover::before { opacity: 1; }
+
+    /* Aircall — green */
+    .tile-aircall { --accent: #00c49a; --glow: rgba(0,196,154,0.08); }
+    .tile-aircall::before { background: radial-gradient(ellipse at top left, var(--glow), transparent 60%); }
+    .tile-aircall:hover { border-color: rgba(0,196,154,0.35); }
+    .tile-aircall .tile-icon { background: rgba(0,196,154,0.12); color: #00c49a; }
+    .tile-aircall .tile-tag { background: rgba(0,196,154,0.1); color: #00c49a; }
+    .tile-aircall .tile-arrow { color: #00c49a; }
+
+    /* Hubstaff — blue */
+    .tile-hubstaff { --accent: #4f8ef7; --glow: rgba(79,142,247,0.08); }
+    .tile-hubstaff::before { background: radial-gradient(ellipse at top left, var(--glow), transparent 60%); }
+    .tile-hubstaff:hover { border-color: rgba(79,142,247,0.35); }
+    .tile-hubstaff .tile-icon { background: rgba(79,142,247,0.12); color: #4f8ef7; }
+    .tile-hubstaff .tile-tag { background: rgba(79,142,247,0.1); color: #4f8ef7; }
+    .tile-hubstaff .tile-arrow { color: #4f8ef7; }
+
+    /* Hiver — orange */
+    .tile-hiver { --accent: #f97316; --glow: rgba(249,115,22,0.08); }
+    .tile-hiver::before { background: radial-gradient(ellipse at top left, var(--glow), transparent 60%); }
+    .tile-hiver:hover { border-color: rgba(249,115,22,0.35); }
+    .tile-hiver .tile-icon { background: rgba(249,115,22,0.12); color: #f97316; }
+    .tile-hiver .tile-tag { background: rgba(249,115,22,0.1); color: #f97316; }
+    .tile-hiver .tile-arrow { color: #f97316; }
+
+    /* Asana — pink */
+    .tile-asana { --accent: #f06292; --glow: rgba(240,98,146,0.08); }
+    .tile-asana::before { background: radial-gradient(ellipse at top left, var(--glow), transparent 60%); }
+    .tile-asana:hover { border-color: rgba(240,98,146,0.35); }
+    .tile-asana .tile-icon { background: rgba(240,98,146,0.12); color: #f06292; }
+    .tile-asana .tile-tag { background: rgba(240,98,146,0.1); color: #f06292; }
+    .tile-asana .tile-arrow { color: #f06292; }
+
+    .tile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .tile-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .tile-arrow {
+      font-size: 20px;
+      opacity: 0;
+      transform: translateX(-6px);
+      transition: opacity 0.2s, transform 0.2s;
+    }
+
+    .tile:hover .tile-arrow {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .tile-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #f0f2ff;
+      letter-spacing: -0.3px;
+    }
+
+    .tile-desc {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
+
+    .tile-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+
+    .tile-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    .tile-metrics {
+      display: flex;
+      gap: 12px;
+    }
+
+    .tile-metric {
+      font-size: 11px;
+      color: #4b5563;
+    }
+
+    .tile-metric span {
+      color: #9ca3af;
+      font-weight: 600;
+    }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #374151;
+      border-top: 1px solid #1e2230;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">Operations Hub</div>
+      <div class="logo-sub">MAS Holdings — Joint Observation</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    All systems live
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Your tools, one place</h1>
+    <p>Select a platform to open its live monitoring dashboard with full API data.</p>
+  </div>
+
+  <div class="tiles">
+
+    <!-- Aircall -->
+    <a class="tile tile-aircall" href="/aircall/">
+      <div class="tile-header">
+        <div class="tile-icon">📞</div>
+        <div class="tile-arrow">→</div>
+      </div>
+      <div>
+        <div class="tile-name">Aircall</div>
+        <div class="tile-desc">Call activity, agent performance, queue stats, missed calls & SLA tracking.</div>
+      </div>
+      <div class="tile-footer">
+        <div class="tile-tag">Voice & Calls</div>
+        <div class="tile-metrics">
+          <div class="tile-metric">Calls <span>·</span> Queues <span>·</span> Agents</div>
+        </div>
+      </div>
+    </a>
+
+    <!-- Hubstaff -->
+    <a class="tile tile-hubstaff" href="hubstaff/index.html">
+      <div class="tile-header">
+        <div class="tile-icon">⏱️</div>
+        <div class="tile-arrow">→</div>
+      </div>
+      <div>
+        <div class="tile-name">Hubstaff</div>
+        <div class="tile-desc">Team time tracking, productivity scores, screenshots, activity rates & payroll.</div>
+      </div>
+      <div class="tile-footer">
+        <div class="tile-tag">Time & Productivity</div>
+        <div class="tile-metrics">
+          <div class="tile-metric">Hours <span>·</span> Activity <span>·</span> Teams</div>
+        </div>
+      </div>
+    </a>
+
+    <!-- Hiver -->
+    <a class="tile tile-hiver" href="http://localhost:3000/hiver/index.html">
+      <div class="tile-header">
+        <div class="tile-icon">📧</div>
+        <div class="tile-arrow">→</div>
+      </div>
+      <div>
+        <div class="tile-name">Hiver</div>
+        <div class="tile-desc">Email inbox health, response times, ticket volume, assignment & CSAT scores.</div>
+      </div>
+      <div class="tile-footer">
+        <div class="tile-tag">Email Support</div>
+        <div class="tile-metrics">
+          <div class="tile-metric">Tickets <span>·</span> SLA <span>·</span> CSAT</div>
+        </div>
+      </div>
+    </a>
+
+    <!-- Asana -->
+    <a class="tile tile-asana" href="asana/index.html">
+      <div class="tile-header">
+        <div class="tile-icon">✅</div>
+        <div class="tile-arrow">→</div>
+      </div>
+      <div>
+        <div class="tile-name">Asana</div>
+        <div class="tile-desc">Project health, task completion rates, overdue items, workload & milestones.</div>
+      </div>
+      <div class="tile-footer">
+        <div class="tile-tag">Projects & Tasks</div>
+        <div class="tile-metrics">
+          <div class="tile-metric">Tasks <span>·</span> Projects <span>·</span> Workload</div>
+        </div>
+      </div>
+    </a>
+
+  </div>
+</main>
+
+<footer>MAS Holdings — Joint Observation Dashboard &nbsp;·&nbsp; 2026</footer>
+
+</body>
+</html>

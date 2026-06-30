@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accept Invitation — Operations Hub</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:#0a0d12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .wrap{width:100%;max-width:400px}
+    .logo{text-align:center;margin-bottom:32px}
+    .logo-icon{width:56px;height:56px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;margin:0 auto 14px}
+    .logo-title{font-size:22px;font-weight:700;color:#f0f2ff}
+    .logo-sub{font-size:12px;color:#4b5563;margin-top:4px}
+    .card{background:#0f1117;border:1px solid #1e2230;border-radius:16px;padding:36px}
+    .card-title{font-size:18px;font-weight:700;color:#f0f2ff;margin-bottom:6px}
+    .card-sub{font-size:13px;color:#6b7280;margin-bottom:24px}
+    .invite-badge{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#22c55e;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:11px;color:#9ca3af;margin-bottom:6px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+    .field input{width:100%;background:#161b27;border:1px solid #1e2230;color:#f0f2ff;padding:11px 14px;border-radius:8px;font-size:14px;outline:none;transition:border-color .15s}
+    .field input:focus{border-color:#4f8ef7}
+    .field input::placeholder{color:#374151}
+    .password-hint{font-size:11px;color:#374151;margin-top:5px}
+    .strength-bar{height:3px;border-radius:2px;background:#1e2230;margin-top:6px;overflow:hidden}
+    .strength-fill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+    .btn-primary{width:100%;background:#4f8ef7;color:#fff;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
+    .btn-primary:hover{background:#3d7de6}
+    .btn-primary:disabled{background:#1e2230;color:#374151;cursor:not-allowed}
+    .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+    .alert.show{display:block}
+    .alert-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#ef4444}
+    .footer{text-align:center;margin-top:20px;font-size:11px;color:#374151}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">GP</div>
+    <div class="logo-title">Operations Hub</div>
+    <div class="logo-sub">GP Bookkeeper Pty Ltd</div>
+  </div>
+
+  <div class="card">
+    <div class="alert alert-error" id="errMsg"></div>
+
+    <div class="invite-badge">✉ You've been invited — set up your account below</div>
+    <div class="card-title">Create Your Account</div>
+    <div class="card-sub" id="inviteSub">Welcome! Choose a password to get started.</div>
+
+    <form id="inviteForm">
+      <div class="field">
+        <label>Full Name</label>
+        <input id="iName" type="text" placeholder="Your name" required autocomplete="name">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="iPass" type="password" placeholder="At least 8 characters" required autocomplete="new-password" oninput="checkStrength(this.value)">
+        <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+        <div class="password-hint" id="strengthLabel">Choose a strong password</div>
+      </div>
+      <div class="field">
+        <label>Confirm Password</label>
+        <input id="iPass2" type="password" placeholder="Re-enter your password" required autocomplete="new-password">
+      </div>
+      <button type="submit" class="btn-primary" id="inviteBtn">Create Account →</button>
+    </form>
+  </div>
+
+  <div class="footer">GP Bookkeeper Operations Hub &middot; Confidential</div>
+</div>
+
+<script>
+  const token = location.pathname.split('/invite/')[1];
+
+  function checkStrength(pw) {
+    const fill = document.getElementById('strengthFill');
+    const lbl  = document.getElementById('strengthLabel');
+    let score = 0;
+    if (pw.length >= 8)  score++;
+    if (pw.length >= 12) score++;
+    if (/[A-Z]/.test(pw)) score++;
+    if (/[0-9]/.test(pw)) score++;
+    if (/[^A-Za-z0-9]/.test(pw)) score++;
+    const map = ['', 'Very weak', 'Weak', 'Fair', 'Strong', 'Very strong'];
+    const col  = ['', '#ef4444', '#f97316', '#fbbf24', '#22c55e', '#10b981'];
+    fill.style.width    = (score / 5 * 100) + '%';
+    fill.style.background = col[score] || '#374151';
+    lbl.textContent = map[score] || 'Choose a strong password';
+    lbl.style.color = col[score] || '#374151';
+  }
+
+  document.getElementById('inviteForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const name  = document.getElementById('iName').value.trim();
+    const pass  = document.getElementById('iPass').value;
+    const pass2 = document.getElementById('iPass2').value;
+    if (pass !== pass2) return showErr('Passwords do not match.');
+    if (pass.length < 8) return showErr('Password must be at least 8 characters.');
+    const btn = document.getElementById('inviteBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Creating account...';
+    const r = await fetch('/invite/' + token, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, password: pass })
+    });
+    const d = await r.json();
+    if (d.ok) { location.href = d.redirect || '/'; }
+    else { showErr(d.error); btn.disabled = false; btn.textContent = 'Create Account →'; }
+  });
+
+  function showErr(msg) {
+    const el = document.getElementById('errMsg');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+</script>
+</body>
+</html>

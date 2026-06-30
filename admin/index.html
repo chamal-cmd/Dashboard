@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Panel — Operations Hub</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0d12;color:#d1d5db;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+
+    /* Topbar */
+    .topbar{background:#0f1117;border-bottom:1px solid #1e2230;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+    .topbar-left{display:flex;align-items:center;gap:14px}
+    .logo-icon{width:32px;height:32px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff}
+    .topbar-title{font-size:14px;font-weight:700;color:#f0f2ff}
+    .topbar-sep{color:#1e2230;font-size:16px}
+    .topbar-page{font-size:13px;color:#6b7280}
+    .topbar-right{display:flex;align-items:center;gap:12px}
+    .back-btn{background:#161b27;border:1px solid #1e2230;color:#9ca3af;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;text-decoration:none;transition:border-color .15s}
+    .back-btn:hover{border-color:#4f8ef7;color:#f0f2ff}
+    .logout-btn{background:transparent;border:1px solid #1e2230;color:#9ca3af;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;transition:border-color .15s}
+    .logout-btn:hover{border-color:#ef4444;color:#ef4444}
+    .me-badge{font-size:12px;color:#6b7280}
+    .me-badge span{color:#f0f2ff;font-weight:600}
+
+    /* Layout */
+    .page{max-width:1100px;margin:0 auto;padding:32px 24px}
+
+    /* Section header */
+    .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .sh-title{font-size:16px;font-weight:700;color:#f0f2ff}
+    .sh-sub{font-size:12px;color:#6b7280;margin-top:2px}
+
+    /* Stat chips */
+    .chips{display:flex;gap:12px;margin-bottom:32px;flex-wrap:wrap}
+    .chip{background:#0f1117;border:1px solid #1e2230;border-radius:10px;padding:14px 20px;min-width:140px}
+    .chip-val{font-size:22px;font-weight:700;color:#f0f2ff}
+    .chip-lbl{font-size:11px;color:#6b7280;margin-top:3px}
+
+    /* Invite form */
+    .invite-card{background:#0f1117;border:1px solid #1e2230;border-radius:12px;padding:24px;margin-bottom:32px}
+    .invite-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+    .invite-row .f{flex:1;min-width:180px}
+    .invite-row .f label{display:block;font-size:11px;color:#9ca3af;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+    .invite-row .f input,.invite-row .f select{width:100%;background:#161b27;border:1px solid #1e2230;color:#f0f2ff;padding:10px 13px;border-radius:8px;font-size:13px;outline:none;transition:border-color .15s}
+    .invite-row .f input:focus,.invite-row .f select:focus{border-color:#4f8ef7}
+    .invite-row .f select option{background:#161b27}
+    .btn-invite{background:#4f8ef7;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s;height:40px}
+    .btn-invite:hover{background:#3d7de6}
+    .btn-invite:disabled{background:#1e2230;color:#374151;cursor:not-allowed}
+    .invite-result{margin-top:12px;font-size:12px;padding:10px 14px;border-radius:6px;display:none}
+    .invite-result.ok{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#22c55e}
+    .invite-result.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#ef4444}
+
+    /* User table */
+    .table-wrap{background:#0f1117;border:1px solid #1e2230;border-radius:12px;overflow:hidden;margin-bottom:32px}
+    table{width:100%;border-collapse:collapse}
+    thead th{background:#0a0d12;padding:10px 16px;font-size:11px;font-weight:700;color:#6b7280;text-align:left;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid #1e2230}
+    tbody tr{border-bottom:1px solid #0f1117}
+    tbody tr:hover{background:#11151e}
+    tbody td{padding:12px 16px;font-size:13px;color:#d1d5db;vertical-align:middle}
+
+    /* Badges */
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+    .badge-admin{background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.2)}
+    .badge-manager{background:rgba(79,142,247,.12);color:#4f8ef7;border:1px solid rgba(79,142,247,.2)}
+    .badge-viewer{background:rgba(107,114,128,.12);color:#9ca3af;border:1px solid rgba(107,114,128,.2)}
+    .badge-active{background:rgba(34,197,94,.08);color:#22c55e;border:1px solid rgba(34,197,94,.2)}
+    .badge-pending{background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+    .badge-suspended{background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+
+    /* Action buttons */
+    .act-row{display:flex;gap:6px;flex-wrap:wrap}
+    .act-btn{background:#161b27;border:1px solid #1e2230;color:#9ca3af;padding:4px 10px;border-radius:5px;font-size:11px;cursor:pointer;transition:all .15s}
+    .act-btn:hover{border-color:#4f8ef7;color:#4f8ef7}
+    .act-btn.danger:hover{border-color:#ef4444;color:#ef4444}
+    .act-btn.warn:hover{border-color:#fbbf24;color:#fbbf24}
+
+    /* Role select inline */
+    .role-sel{background:#161b27;border:1px solid #1e2230;color:#d1d5db;padding:4px 8px;border-radius:5px;font-size:12px;cursor:pointer;outline:none}
+
+    .empty{color:#374151;font-size:13px;padding:24px;text-align:center}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .toast{position:fixed;bottom:24px;right:24px;background:#0f1117;border:1px solid #1e2230;border-radius:8px;padding:10px 16px;font-size:13px;color:#d1d5db;z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+    .toast.show{opacity:1;transform:translateY(0)}
+    .toast.ok{border-color:rgba(34,197,94,.4);color:#22c55e}
+    .toast.err{border-color:rgba(239,68,68,.4);color:#ef4444}
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-icon">GP</div>
+    <span class="topbar-title">Operations Hub</span>
+    <span class="topbar-sep">/</span>
+    <span class="topbar-page">Admin Panel</span>
+  </div>
+  <div class="topbar-right">
+    <span class="me-badge">Signed in as <span id="meLabel">...</span></span>
+    <a href="/" class="back-btn">← Dashboard</a>
+    <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- Stats -->
+  <div class="chips" id="statsChips">
+    <div class="chip"><div class="chip-val" id="sTotal">—</div><div class="chip-lbl">Total Users</div></div>
+    <div class="chip"><div class="chip-val" id="sActive">—</div><div class="chip-lbl">Active</div></div>
+    <div class="chip"><div class="chip-val" id="sPending">—</div><div class="chip-lbl">Pending Invite</div></div>
+    <div class="chip"><div class="chip-val" id="sSuspended">—</div><div class="chip-lbl">Suspended</div></div>
+  </div>
+
+  <!-- Invite -->
+  <div class="sh"><div><div class="sh-title">Invite New User</div><div class="sh-sub">An email invite link will be sent. They set their own password.</div></div></div>
+  <div class="invite-card">
+    <div class="invite-row">
+      <div class="f"><label>Name</label><input id="iName" type="text" placeholder="Full name"></div>
+      <div class="f"><label>Email</label><input id="iEmail" type="email" placeholder="user@example.com"></div>
+      <div class="f f-sm" style="max-width:150px"><label>Role</label>
+        <select id="iRole">
+          <option value="viewer">Viewer</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <button class="btn-invite" id="inviteBtn" onclick="sendInvite()">Send Invite</button>
+    </div>
+    <div class="invite-result" id="inviteResult"></div>
+  </div>
+
+  <!-- Users table -->
+  <div class="sh">
+    <div><div class="sh-title">All Users</div><div class="sh-sub" id="userCount"></div></div>
+    <button class="back-btn" onclick="loadUsers()" style="font-size:11px">↻ Refresh</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="userTbody">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let me = null;
+  const ROLES = ['viewer','manager','admin'];
+
+  async function init() {
+    const r = await fetch('/admin/api/me');
+    if (!r.ok) { location.href = '/login'; return; }
+    me = await r.json();
+    document.getElementById('meLabel').textContent = `${me.name} (${me.role})`;
+    await loadUsers();
+  }
+
+  async function loadUsers() {
+    const r = await fetch('/admin/api/users');
+    if (!r.ok) return;
+    const users = await r.json();
+    const tb = document.getElementById('userTbody');
+    document.getElementById('userCount').textContent = `${users.length} user${users.length!==1?'s':''}`;
+
+    const active    = users.filter(u=>u.status==='active').length;
+    const pending   = users.filter(u=>u.status==='pending').length;
+    const suspended = users.filter(u=>u.status==='suspended').length;
+    document.getElementById('sTotal').textContent     = users.length;
+    document.getElementById('sActive').textContent    = active;
+    document.getElementById('sPending').textContent   = pending;
+    document.getElementById('sSuspended').textContent = suspended;
+
+    if (!users.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No users yet.</td></tr>'; return; }
+
+    tb.innerHTML = users.map(u => {
+      const isSelf = u.id === me.id;
+      const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+      const actions = isSelf ? '<span style="color:#374151;font-size:11px">You</span>' : `
+        <div class="act-row">
+          <select class="role-sel" onchange="changeRole('${u.id}', this.value)">
+            ${ROLES.map(r=>`<option value="${r}"${r===u.role?' selected':''}>${r}</option>`).join('')}
+          </select>
+          ${u.status==='active'
+            ? `<button class="act-btn warn" onclick="setStatus('${u.id}','suspended')">Suspend</button>`
+            : `<button class="act-btn" onclick="setStatus('${u.id}','active')">Activate</button>`
+          }
+          ${u.status==='pending'
+            ? `<button class="act-btn" onclick="resendInvite('${u.id}','${u.email}')">Resend</button>`
+            : ''
+          }
+          <button class="act-btn danger" onclick="deleteUser('${u.id}','${escHtml(u.name)}')">Delete</button>
+        </div>`;
+      return `<tr>
+        <td><strong style="color:#f0f2ff">${escHtml(u.name)}</strong>${isSelf?' <span style="font-size:10px;color:#4f8ef7">(you)</span>':''}</td>
+        <td style="color:#6b7280">${escHtml(u.email)}</td>
+        <td><span class="badge badge-${u.role}">${u.role}</span></td>
+        <td><span class="badge badge-${u.status}">${u.status}</span></td>
+        <td style="color:#6b7280;font-size:12px">${lastLogin}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function sendInvite() {
+    const name  = document.getElementById('iName').value.trim();
+    const email = document.getElementById('iEmail').value.trim();
+    const role  = document.getElementById('iRole').value;
+    const res   = document.getElementById('inviteResult');
+    const btn   = document.getElementById('inviteBtn');
+    if (!name || !email) { showResult(res,'err','Please enter name and email.'); return; }
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Sending…';
+    const r = await fetch('/admin/api/invite', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name, email, role })
+    });
+    const d = await r.json();
+    btn.disabled = false; btn.textContent = 'Send Invite';
+    if (d.ok) {
+      showResult(res,'ok', d.smtp ? `Invite sent to ${email}.` : `Invite link (copy from server console — SMTP not configured).`);
+      document.getElementById('iName').value = '';
+      document.getElementById('iEmail').value = '';
+      await loadUsers();
+    } else {
+      showResult(res,'err', d.error);
+    }
+  }
+
+  async function changeRole(id, role) {
+    const r = await fetch(`/admin/api/users/${id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ role })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('ok', 'Role updated.'); await loadUsers(); }
+    else toast('err', d.error);
+  }
+
+  async function setStatus(id, status) {
+    const r = await fetch(`/admin/api/users/${id}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status })
+    });
+    const d = await r.json();
+    if (d.ok) { toast('ok', `User ${status}.`); await loadUsers(); }
+    else toast('err', d.error);
+  }
+
+  async function deleteUser(id, name) {
+    if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+    const r = await fetch(`/admin/api/users/${id}`, { method:'DELETE' });
+    const d = await r.json();
+    if (d.ok) { toast('ok', 'User deleted.'); await loadUsers(); }
+    else toast('err', d.error);
+  }
+
+  async function resendInvite(id, email) {
+    const r = await fetch('/admin/api/invite/resend', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id })
+    });
+    const d = await r.json();
+    if (d.ok) toast('ok', `Invite resent to ${email}.`);
+    else toast('err', d.error);
+  }
+
+  async function doLogout() {
+    await fetch('/auth/logout', { method:'POST' });
+    location.href = '/login';
+  }
+
+  function showResult(el, type, msg) {
+    el.className = `invite-result ${type} show`;
+    el.textContent = msg;
+  }
+
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function toast(type, msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  init();
+</script>
+</body>
+</html>

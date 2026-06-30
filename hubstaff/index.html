@@ -1,0 +1,1961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hubstaff Dashboard</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e5e7eb;min-height:100vh;display:flex;overflow:hidden}
+
+    /* ── Loading screen ── */
+    #loadingScreen{
+      position:fixed;inset:0;z-index:9999;background:#0f1117;
+      display:flex;align-items:center;justify-content:center;
+      flex-direction:column;gap:0;
+      transition:opacity .5s ease, transform .5s ease;
+      overflow:hidden;
+    }
+    #loadingScreen.fade-out{opacity:0;transform:scale(1.04);pointer-events:none}
+    #loadingScreen::before{
+      content:'';position:absolute;inset:0;
+      background-image:
+        linear-gradient(rgba(79,142,247,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79,142,247,.04) 1px, transparent 1px);
+      background-size:40px 40px;
+      animation:gridDrift 8s linear infinite;
+      pointer-events:none;
+    }
+    #loadingScreen::after{
+      content:'';position:absolute;inset:0;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.18) 2px,rgba(0,0,0,.18) 4px);
+      pointer-events:none;
+    }
+    @keyframes gridDrift{0%{background-position:0 0}100%{background-position:40px 40px}}
+    @keyframes iconBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    @keyframes lsPop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+    @keyframes shimmer{0%{background-position:-100% 0}100%{background-position:200% 0}}
+    .ls-inner{
+      position:relative;z-index:1;
+      display:flex;flex-direction:column;align-items:center;gap:18px;
+      width:100%;max-width:480px;padding:0 24px;
+    }
+    .ls-emoji{font-size:48px;line-height:1;animation:iconBounce 1.5s ease-in-out infinite}
+    .ls-title{font-size:28px;font-weight:700;color:#4f8ef7;letter-spacing:.12em;text-transform:uppercase;text-shadow:0 0 24px rgba(79,142,247,.45)}
+    .ls-subtitle{font-size:13px;color:#6b7280;letter-spacing:.04em}
+    .ls-pct{font-size:64px;font-weight:900;color:#f0f2ff;line-height:1;font-variant-numeric:tabular-nums;text-shadow:0 0 40px rgba(240,242,255,.15)}
+    .ls-bar-wrap{width:400px;max-width:100%;height:6px;background:#1e2230;border-radius:999px;overflow:hidden;position:relative}
+    .ls-bar-fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#4f8ef7,#60a5fa,#a78bfa);background-size:200% 100%;transition:width .4s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+    .ls-bar-fill::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.35) 50%,transparent 100%);background-size:60% 100%;animation:shimmer 1.4s infinite linear}
+    .ls-status{font-size:12px;color:#4b5563;letter-spacing:.04em;min-height:16px}
+
+    /* ── Sidebar ── */
+    #sidebar{
+      width:220px;min-width:220px;background:#111827;border-right:1px solid #1e2230;
+      display:flex;flex-direction:column;height:100vh;position:sticky;top:0;
+      transition:width .25s ease,min-width .25s ease;flex-shrink:0;z-index:200;overflow:hidden;
+    }
+    #sidebar.collapsed{width:56px;min-width:56px}
+    .sb-logo{display:flex;align-items:center;gap:10px;padding:18px 16px;border-bottom:1px solid #1e2230;overflow:hidden;white-space:nowrap}
+    .sb-logo-icon{font-size:22px;flex-shrink:0}
+    .sb-logo-text{font-size:16px;font-weight:800;color:#4f8ef7;letter-spacing:.08em;transition:opacity .2s}
+    #sidebar.collapsed .sb-logo-text{opacity:0;pointer-events:none}
+    .sb-nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+    .sb-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:background .15s;color:#9ca3af;font-size:13px;font-weight:500;border-left:3px solid transparent;position:relative;white-space:nowrap;overflow:hidden}
+    .sb-item:hover{background:rgba(255,255,255,.04);color:#d1d5db}
+    .sb-item.active{background:rgba(79,142,247,.08);color:#4f8ef7;border-left-color:#4f8ef7}
+    .sb-item-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center}
+    .sb-item-label{transition:opacity .2s}
+    #sidebar.collapsed .sb-item-label{opacity:0;pointer-events:none}
+    #sidebar.collapsed .sb-item:hover::after{content:attr(data-tip);position:absolute;left:62px;top:50%;transform:translateY(-50%);background:#1e2230;color:#d1d5db;font-size:12px;padding:4px 10px;border-radius:6px;white-space:nowrap;border:1px solid #2d3348;z-index:300;pointer-events:none}
+    .sb-sep{height:1px;background:#1e2230;margin:8px 8px}
+    .sb-footer{padding:12px 8px;border-top:1px solid #1e2230}
+    .sb-org{display:flex;align-items:center;gap:8px;padding:8px 10px;overflow:hidden;white-space:nowrap}
+    .sb-org-icon{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+    .sb-org-name{font-size:11px;color:#6b7280;transition:opacity .2s}
+    #sidebar.collapsed .sb-org-name{opacity:0}
+    .sb-collapse{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;color:#4b5563;font-size:12px;transition:all .15s;white-space:nowrap;overflow:hidden}
+    .sb-collapse:hover{color:#9ca3af;background:rgba(255,255,255,.03)}
+    .sb-collapse-label{transition:opacity .2s}
+    #sidebar.collapsed .sb-collapse-label{opacity:0}
+    .sb-collapse-icon{flex-shrink:0;transition:transform .25s}
+    #sidebar.collapsed .sb-collapse-icon{transform:rotate(180deg)}
+
+    /* ── Main wrapper ── */
+    #appWrap{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+
+    /* ── Topbar ── */
+    #topbar{
+      padding:0 24px;height:56px;border-bottom:1px solid #1e2230;
+      display:flex;align-items:center;justify-content:space-between;
+      background:#0f1117;z-index:100;flex-shrink:0;
+    }
+    .tb-left{display:flex;align-items:center;gap:12px}
+    .back-btn{display:flex;align-items:center;gap:6px;color:#4b5563;font-size:12px;text-decoration:none;transition:color .15s;border:1px solid #1e2230;padding:5px 10px;border-radius:7px;background:#111827}
+    .back-btn:hover{color:#4f8ef7;border-color:rgba(79,142,247,.4)}
+    .page-title{font-size:17px;font-weight:700;color:#f0f2ff}
+    .tb-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .range-btn{background:#161b27;border:1px solid #1e2230;color:#6b7280;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
+    .range-btn.active{background:rgba(79,142,247,.12);border-color:rgba(79,142,247,.35);color:#4f8ef7}
+    .refresh-btn{background:#161b27;border:1px solid #2d3348;color:#9ca3af;padding:6px 12px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
+    .refresh-btn:hover{border-color:#4f8ef7;color:#4f8ef7}
+    .date-filter-wrap{display:flex;flex-direction:column;align-items:flex-end;gap:6px;position:relative}
+    .date-presets{display:flex;align-items:center;gap:6px}
+    .custom-panel{display:none;align-items:center;gap:8px;background:#161b27;border:1px solid #1e2230;border-radius:9px;padding:8px 12px;position:absolute;top:calc(100% + 6px);right:0;z-index:50}
+    .custom-panel.open{display:flex}
+    .custom-panel label{font-size:11px;color:#6b7280}
+    .custom-panel input[type="date"]{background:#0f1117;border:1px solid #2d3348;color:#d1d5db;padding:4px 8px;border-radius:6px;font-size:12px;outline:none;cursor:pointer;color-scheme:dark}
+    .custom-panel input[type="date"]:focus{border-color:rgba(79,142,247,.5)}
+    .apply-btn{background:rgba(79,142,247,.15);border:1px solid rgba(79,142,247,.4);color:#4f8ef7;padding:5px 12px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
+    .apply-btn:hover{background:rgba(79,142,247,.25)}
+    .load-bar{height:2px;background:linear-gradient(90deg,#4f8ef7,#60a5fa,#4f8ef7);background-size:200% 100%;animation:sh 1.2s infinite;display:none}
+    .load-bar.on{display:block}
+
+    /* ── Pages ── */
+    #pageArea{flex:1;overflow-y:auto;overflow-x:hidden}
+    .page{display:none;padding:22px 28px;max-width:1600px}
+    .page.active{display:block}
+
+    /* ── Common components ── */
+    .stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}
+    .sc{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:16px 18px}
+    .sc-lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+    .sc-val{font-size:26px;font-weight:800;color:#f0f2ff;line-height:1}
+    .sc-sub{font-size:11px;color:#6b7280;margin-top:3px}
+    .c-blue{color:#4f8ef7}.c-green{color:#22c55e}.c-orange{color:#f97316}.c-purple{color:#a78bfa}.c-pink{color:#f06292}
+    .g2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+    .full{margin-bottom:18px}
+    .panel{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:18px}
+    .ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+    .pt{font-size:13px;font-weight:600;color:#f0f2ff}
+    .pb{font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(79,142,247,.12);color:#4f8ef7}
+    .empty{font-size:13px;color:#4b5563;padding:24px;text-align:center}
+    .sk{background:linear-gradient(90deg,#1e2230 25%,#252b3b 50%,#1e2230 75%);background-size:200% 100%;animation:sh 1.2s infinite;border-radius:5px;height:12px;margin:5px 0}
+    .err-card{background:#161b27;border:1px solid rgba(239,68,68,.3);border-radius:11px;padding:20px;grid-column:1/-1}
+
+    /* ── Tables (shared) ── */
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl thead{position:sticky;top:0;background:#161b27;z-index:10}
+    .tbl thead tr{border-bottom:1px solid #1e2230}
+    .tbl th{font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;text-align:left;font-weight:600;cursor:pointer;user-select:none;white-space:nowrap}
+    .tbl th:hover{color:#9ca3af}
+    .tbl th.sorted-asc::after{content:' ▲';font-size:8px}
+    .tbl th.sorted-desc::after{content:' ▼';font-size:8px}
+    .tbl td{padding:9px 10px;border-bottom:1px solid #161b27;font-size:12px}
+    .tbl tr:nth-child(even) td{background:#141920}
+    .tbl tr:last-child td{border-bottom:none}
+    .tbl tr:hover td{background:#1a1f2e!important}
+    .av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+    .av44{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;flex-shrink:0}
+    .name-cell{display:flex;align-items:center;gap:8px}
+    .nm{font-size:12px;color:#d1d5db;font-weight:600}
+    .ne{font-size:10px;color:#4b5563}
+    .online-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+    .online-dot.on{background:#22c55e;animation:pulse 2s infinite}
+    .online-dot.off{background:#374151}
+    .role-tag{font-size:10px;padding:2px 7px;border-radius:10px;background:#1e2230;color:#6b7280}
+    .team-tag{font-size:10px;padding:2px 7px;border-radius:10px}
+    .act-bar{width:80px;height:5px;background:#1e2230;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:5px}
+    .act-fill{height:100%;border-radius:3px}
+    .status-on{color:#22c55e;font-weight:600}
+    .status-off{color:#374151;font-weight:600}
+
+    /* ── Bar chart component ── */
+    .bars{display:flex;flex-direction:column;gap:8px}
+    .br{display:flex;align-items:center;gap:8px}
+    .bl{font-size:11px;color:#6b7280;width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
+    .bt{flex:1;height:7px;background:#1e2230;border-radius:4px;overflow:hidden}
+    .bf{height:100%;border-radius:4px;transition:width .8s}
+    .bv{font-size:11px;color:#9ca3af;width:44px;text-align:right;flex-shrink:0}
+
+    /* ── Trend chart ── */
+    .trend{display:flex;align-items:flex-end;gap:3px;height:80px;padding-top:8px}
+    .trend-bar{flex:1;border-radius:3px 3px 0 0;min-height:2px;cursor:pointer;transition:opacity .15s;position:relative}
+    .trend-bar:hover{opacity:.8}
+    .trend-bar:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#1e2230;color:#d1d5db;font-size:10px;padding:3px 7px;border-radius:5px;white-space:nowrap;z-index:10;border:1px solid #2d3348}
+    .trend-btn{background:#1a1f2e;border:1px solid #1e2230;color:#6b7280;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;transition:all .15s}
+    .trend-btn:hover{border-color:#4f8ef7;color:#d1d5db}
+    .trend-btn.active{background:#4f8ef7;color:#fff;border-color:#4f8ef7}
+
+    /* ── Teams ── */
+    .team-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .team-card{background:#1a1f2e;border:1px solid #1e2230;border-radius:9px;padding:14px}
+    .tc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .tc-name{font-size:13px;font-weight:700;color:#f0f2ff}
+    .tc-hours{font-size:13px;font-weight:700;color:#4f8ef7}
+    .tc-members{display:flex;flex-direction:column;gap:5px}
+    .tc-member{display:flex;align-items:center;justify-content:space-between;font-size:11px}
+    .tc-mname{color:#9ca3af}
+    .tc-mhrs{color:#4b5563}
+
+    /* ── Sparklines ── */
+    .spark-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #1a1f2e}
+    .spark-row:last-child{border-bottom:none}
+    .spark-name{font-size:11px;color:#9ca3af;width:100px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .sparkline{display:flex;align-items:flex-end;gap:1.5px;height:24px;flex:1}
+    .sp-bar{flex:1;border-radius:1px;min-height:1px}
+    .spark-total{font-size:11px;color:#4f8ef7;font-weight:700;width:40px;text-align:right;flex-shrink:0}
+
+    /* ── Mini sparkline (7 bars) ── */
+    .mini-spark{display:flex;align-items:flex-end;gap:1px;height:18px}
+    .ms-bar{width:7px;border-radius:1px;min-height:1px}
+
+    /* ── Team page ── */
+    .team-controls{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+    .team-controls input{background:#161b27;border:1px solid #1e2230;color:#d1d5db;padding:7px 12px;border-radius:8px;font-size:12px;outline:none;width:200px}
+    .team-controls input:focus{border-color:rgba(79,142,247,.5)}
+    .team-controls select{background:#161b27;border:1px solid #1e2230;color:#d1d5db;padding:7px 12px;border-radius:8px;font-size:12px;outline:none;cursor:pointer;color-scheme:dark}
+    .toggle-view{display:flex;border:1px solid #1e2230;border-radius:8px;overflow:hidden}
+    .toggle-view button{background:#161b27;border:none;color:#6b7280;padding:7px 12px;font-size:12px;cursor:pointer;transition:all .15s}
+    .toggle-view button.active{background:rgba(79,142,247,.15);color:#4f8ef7}
+    .emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+    .emp-card{background:#161b27;border:1px solid #1e2230;border-radius:12px;padding:16px;cursor:pointer;transition:all .2s}
+    .emp-card:hover{border-color:rgba(79,142,247,.4);box-shadow:0 0 0 1px rgba(79,142,247,.15);transform:translateY(-1px)}
+    .emp-card-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    .emp-card-info{flex:1;min-width:0}
+    .emp-card-name{font-size:13px;font-weight:700;color:#f0f2ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .emp-card-email{font-size:10px;color:#4b5563;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .emp-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+    .badge{font-size:9px;padding:2px 6px;border-radius:8px}
+    .badge-role{background:#1e2230;color:#6b7280}
+    .badge-online{background:rgba(34,197,94,.15);color:#22c55e}
+    .badge-offline{background:rgba(55,65,81,.3);color:#4b5563}
+    .emp-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+    .emp-stat{background:#1a1f2e;border-radius:7px;padding:7px 9px}
+    .emp-stat-lbl{font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:.4px}
+    .emp-stat-val{font-size:13px;font-weight:700;color:#d1d5db;margin-top:2px}
+
+    /* ── Slide panel ── */
+    #slideOverlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;opacity:0;transition:opacity .25s}
+    #slideOverlay.open{display:block;opacity:1}
+    #slidePanel{position:fixed;right:-340px;top:0;bottom:0;width:340px;background:#111827;border-left:1px solid #1e2230;z-index:501;transition:right .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;padding:24px}
+    #slidePanel.open{right:0}
+    .sp-close{position:absolute;top:16px;right:16px;background:#1e2230;border:none;color:#9ca3af;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+    .sp-close:hover{background:#2d3348;color:#f0f2ff}
+    .sp-member-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-right:40px}
+    .sp-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+    .sp-stat{background:#161b27;border:1px solid #1e2230;border-radius:9px;padding:12px}
+    .sp-stat-lbl{font-size:10px;color:#4b5563;text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+    .sp-stat-val{font-size:18px;font-weight:800;color:#f0f2ff}
+    .sp-section{margin-bottom:18px}
+    .sp-section-title{font-size:11px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:600}
+
+    /* ── Reports page ── */
+    .sub-tabs{display:flex;border-bottom:1px solid #1e2230;margin-bottom:20px}
+    .sub-tab{padding:10px 18px;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+    .sub-tab:hover{color:#d1d5db}
+    .sub-tab.active{color:#4f8ef7;border-bottom-color:#4f8ef7}
+    .sub-panel{display:none}
+    .sub-panel.active{display:block}
+    .report-controls{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+    .report-controls input{background:#161b27;border:1px solid #1e2230;color:#d1d5db;padding:6px 12px;border-radius:7px;font-size:12px;outline:none;width:200px}
+    .report-controls input:focus{border-color:rgba(79,142,247,.5)}
+    .export-btn{background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.3);color:#4f8ef7;padding:6px 14px;border-radius:7px;font-size:12px;cursor:pointer;transition:all .15s}
+    .export-btn:hover{background:rgba(79,142,247,.22)}
+    .day-green{color:#22c55e;font-weight:600}
+    .day-orange{color:#f97316;font-weight:600}
+    .day-red{color:#ef4444;font-weight:600}
+    .day-empty{color:#374151}
+    .inline-bar-wrap{display:flex;align-items:center;gap:6px}
+    .inline-bar{height:5px;border-radius:3px;background:rgba(79,142,247,.5)}
+    .summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+    .tbl-wrap{overflow-x:auto;border-radius:9px;border:1px solid #1e2230}
+
+    /* ── Settings page ── */
+    .settings-tabs{display:flex;border-bottom:1px solid #1e2230;margin-bottom:24px}
+    .settings-tab{padding:10px 18px;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
+    .settings-tab:hover{color:#d1d5db}
+    .settings-tab.active{color:#4f8ef7;border-bottom-color:#4f8ef7}
+    .settings-panel{display:none}
+    .settings-panel.active{display:block}
+    .settings-section{background:#161b27;border:1px solid #1e2230;border-radius:11px;padding:20px;margin-bottom:16px}
+    .settings-section h3{font-size:13px;font-weight:600;color:#f0f2ff;margin-bottom:16px}
+    .setting-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #1a1f2e}
+    .setting-row:last-child{border-bottom:none}
+    .setting-label{font-size:13px;color:#d1d5db}
+    .setting-desc{font-size:11px;color:#4b5563;margin-top:2px}
+    .setting-value{font-size:13px;color:#6b7280;text-align:right}
+    .setting-input{background:#1a1f2e;border:1px solid #2d3348;color:#d1d5db;padding:6px 10px;border-radius:7px;font-size:12px;outline:none;min-width:180px}
+    .setting-input:focus{border-color:rgba(79,142,247,.5)}
+    .toggle-sw{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
+    .toggle-sw input{opacity:0;width:0;height:0}
+    .toggle-sw .slider{position:absolute;inset:0;background:#2d3348;border-radius:22px;transition:.3s}
+    .toggle-sw .slider::before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:#6b7280;border-radius:50%;transition:.3s}
+    .toggle-sw input:checked + .slider{background:rgba(79,142,247,.4);border:1px solid rgba(79,142,247,.6)}
+    .toggle-sw input:checked + .slider::before{transform:translateX(18px);background:#4f8ef7}
+    .range-slider{-webkit-appearance:none;appearance:none;width:180px;height:5px;background:#1e2230;border-radius:3px;outline:none;cursor:pointer}
+    .range-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;border-radius:50%;background:#4f8ef7;cursor:pointer}
+    .masked-val{font-family:'Courier New',monospace;font-size:11px;color:#6b7280;background:#1a1f2e;padding:4px 10px;border-radius:6px;border:1px solid #2d3348}
+    .icon-btn{background:#1a1f2e;border:1px solid #2d3348;color:#9ca3af;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;transition:all .15s}
+    .icon-btn:hover{border-color:#4f8ef7;color:#4f8ef7}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:6px}
+
+    /* ── Responsive ── */
+    @media(max-width:1100px){
+      .stats{grid-template-columns:repeat(3,1fr)}
+      .g2{grid-template-columns:1fr}
+      .team-cards{grid-template-columns:1fr}
+      .summary-cards{grid-template-columns:repeat(2,1fr)}
+    }
+    @media(max-width:700px){
+      #sidebar{display:none}
+      .stats{grid-template-columns:repeat(2,1fr)}
+      .summary-cards{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Loading screen ── -->
+<div id="loadingScreen">
+  <div class="ls-inner">
+    <div class="ls-emoji">⏱️</div>
+    <div class="ls-title">HUBSTAFF</div>
+    <div class="ls-subtitle">Loading workspace data...</div>
+    <div class="ls-pct" id="lsPct">0%</div>
+    <div class="ls-bar-wrap"><div class="ls-bar-fill" id="lsBar"></div></div>
+    <div class="ls-status" id="lsStatus">Initializing...</div>
+  </div>
+</div>
+
+<!-- ── Sidebar ── -->
+<nav id="sidebar">
+  <div class="sb-logo">
+    <span class="sb-logo-icon">⏱️</span>
+    <span class="sb-logo-text">Hubstaff</span>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-item active" data-tip="Overview" onclick="showPage('overview',this)">
+      <span class="sb-item-icon">□</span><span class="sb-item-label">Overview</span>
+    </div>
+    <div class="sb-item" data-tip="Team" onclick="showPage('team',this)">
+      <span class="sb-item-icon">👥</span><span class="sb-item-label">Team</span>
+    </div>
+    <div class="sb-item" data-tip="Reports" onclick="showPage('reports',this)">
+      <span class="sb-item-icon">📊</span><span class="sb-item-label">Reports</span>
+    </div>
+    <div class="sb-item" data-tip="Settings" onclick="showPage('settings',this)">
+      <span class="sb-item-icon">⚙</span><span class="sb-item-label">Settings</span>
+    </div>
+  </div>
+  <div class="sb-sep"></div>
+  <div class="sb-footer">
+    <div class="sb-org">
+      <div class="sb-org-icon">GP</div>
+      <span class="sb-org-name">GP Bookkeeper Pty Ltd</span>
+    </div>
+    <div class="sb-collapse" onclick="toggleSidebar()">
+      <span class="sb-collapse-icon">←</span>
+      <span class="sb-collapse-label">Collapse</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── App wrap ── -->
+<div id="appWrap">
+  <div class="load-bar" id="lb"></div>
+
+  <!-- Topbar -->
+  <div id="topbar">
+    <div class="tb-left">
+      <a class="back-btn" href="../index.html">← Hub</a>
+      <div class="page-title" id="pageTitle">Overview</div>
+    </div>
+    <div class="tb-right">
+      <div class="date-filter-wrap">
+        <div class="date-presets">
+          <button class="range-btn active" data-range="today"  onclick="setRange('today',this)">Today</button>
+          <button class="range-btn"        data-range="week"   onclick="setRange('week',this)">This Week</button>
+          <button class="range-btn"        data-range="month"  onclick="setRange('month',this)">This Month</button>
+          <button class="range-btn"        data-range="last30" onclick="setRange('last30',this)">Last 30d</button>
+          <button class="range-btn"        data-range="last90" onclick="setRange('last90',this)">Last 90d</button>
+          <button class="range-btn"        data-range="custom" onclick="toggleCustomPanel(this)">Custom</button>
+          <span id="liveIndicator" style="font-size:10px;color:#22c55e;font-weight:600;opacity:0;transition:opacity .4s"></span>
+          <button class="refresh-btn"      onclick="loadAll()">↻ Refresh</button>
+        </div>
+        <div class="custom-panel" id="customPanel">
+          <label>From</label>
+          <input type="date" id="customFrom"/>
+          <label>To</label>
+          <input type="date" id="customTo"/>
+          <button class="apply-btn" onclick="applyCustomRange()">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Data delay notice -->
+  <div style="background:linear-gradient(90deg,rgba(251,191,36,.08),rgba(251,191,36,.04));border-bottom:1px solid rgba(251,191,36,.2);padding:9px 24px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:16px">⏱</span>
+    <span style="font-size:13px;font-weight:700;color:#fbbf24">~15 Minute Data Delay</span>
+    <span style="font-size:12px;color:#92400e;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.2);border-radius:4px;padding:1px 7px">Hubstaff</span>
+    <span style="font-size:12px;color:#78716c">All figures reflect activity up to approximately 15 minutes ago. Click <b style="color:#d4a017">↻ Refresh</b> to pull the latest available data.</span>
+  </div>
+
+  <!-- Pages -->
+  <div id="pageArea">
+
+    <!-- PAGE 1: Overview -->
+    <div class="page active" id="pg-overview">
+      <div class="stats" id="stats">
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+        <div class="sc"><div class="sk" style="width:70px;height:26px"></div></div>
+      </div>
+
+      <div class="full panel">
+        <div class="ph">
+          <div class="pt" id="trendPanelTitle">30-Day Activity Trend</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span id="trendSub" style="font-size:11px;color:#6b7280;margin-right:6px"></span>
+            <button class="trend-btn active" onclick="setTrendRange(30,this)">30D</button>
+            <button class="trend-btn" onclick="setTrendRange(60,this)">60D</button>
+            <button class="trend-btn" onclick="setTrendRange(90,this)">90D</button>
+            <button class="trend-btn" onclick="setTrendRange('custom',this)">Custom</button>
+          </div>
+        </div>
+        <div id="trendCustomPanel" style="display:none;align-items:center;gap:8px;padding:6px 0 2px">
+          <span style="font-size:11px;color:#9ca3af">From</span>
+          <input id="trendCustFrom" type="date" style="background:#1a1f2e;border:1px solid #1e2230;color:#d1d5db;padding:4px 8px;border-radius:6px;font-size:11px;outline:none">
+          <span style="font-size:11px;color:#9ca3af">To</span>
+          <input id="trendCustTo" type="date" style="background:#1a1f2e;border:1px solid #1e2230;color:#d1d5db;padding:4px 8px;border-radius:6px;font-size:11px;outline:none">
+          <button onclick="applyTrendCustom()" style="background:#4f8ef7;color:#fff;border:none;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Apply</button>
+        </div>
+        <div class="trend" id="trendChart"><div class="sk" style="width:100%;height:80px"></div></div>
+        <div id="trendAxis" style="position:relative;height:18px;margin-top:3px"></div>
+      </div>
+
+      <div class="full panel">
+        <div class="ph">
+          <div class="pt">All Team Members</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input id="memberSearch" placeholder="Search..." oninput="filterMembers()" style="background:#1a1f2e;border:1px solid #1e2230;color:#d1d5db;padding:5px 10px;border-radius:7px;font-size:12px;outline:none;width:160px"/>
+            <div class="pb" id="memberBadge">—</div>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="tbl" id="memberTable">
+            <thead><tr>
+              <th onclick="sortTableById('memberBody',0,this)">Member</th>
+              <th onclick="sortTableById('memberBody',1,this)">Team</th>
+              <th onclick="sortTableById('memberBody',2,this)">Role</th>
+              <th onclick="sortTableById('memberBody',3,this)">Tracked</th>
+              <th onclick="sortTableById('memberBody',4,this)">Keyboard</th>
+              <th onclick="sortTableById('memberBody',6,this)">Mouse</th>
+              <th onclick="sortTableById('memberBody',7,this)">Activity %</th>
+              <th onclick="sortTableById('memberBody',8,this)">Last Active</th>
+              <th onclick="sortTableById('memberBody',9,this)">Status</th>
+            </tr></thead>
+            <tbody id="memberBody"><tr><td colspan="9"><div class="sk"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="ph"><div class="pt">Hours by Project</div><div class="pb" id="projBadge">—</div></div>
+          <div class="bars" id="projBars"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><div class="pt">Teams (Pods)</div></div>
+          <div class="team-cards" id="teamCards"><div class="sk"></div></div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="ph"><div class="pt">7-Day Member Sparklines</div><div style="font-size:11px;color:#6b7280">tracked hrs/day</div></div>
+          <div id="sparklines"><div class="sk"></div><div class="sk"></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><div class="pt">Top Performers — Tracked Time</div><div class="pb" id="perfPeriod">—</div></div>
+          <div class="bars" id="perfBars"><div class="sk"></div><div class="sk"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE 2: Team -->
+    <div class="page" id="pg-team">
+      <div class="team-controls">
+        <input id="teamSearch" placeholder="Search employees..." oninput="applyTeamFilters()"/>
+        <select id="teamFilter" onchange="applyTeamFilters()">
+          <option value="">All Teams</option>
+        </select>
+        <select id="statusFilter" onchange="applyTeamFilters()">
+          <option value="">All Status</option>
+          <option value="online">Online</option>
+          <option value="offline">Offline</option>
+        </select>
+        <div class="toggle-view">
+          <button id="gridViewBtn" class="active" onclick="switchTeamView('grid',this)">⊞ Grid</button>
+          <button id="tableViewBtn" onclick="switchTeamView('table',this)">≡ Table</button>
+        </div>
+        <div class="pb" id="teamCount">—</div>
+      </div>
+      <div id="empGrid" class="emp-grid"></div>
+      <div id="empTable" style="display:none">
+        <div class="tbl-wrap">
+          <table class="tbl" id="empTbl">
+            <thead><tr>
+              <th onclick="sortTableById('empTblBody',0,this)">Name</th>
+              <th onclick="sortTableById('empTblBody',1,this)">Team</th>
+              <th onclick="sortTableById('empTblBody',2,this)">Role</th>
+              <th onclick="sortTableById('empTblBody',3,this)">Tracked</th>
+              <th onclick="sortTableById('empTblBody',4,this)">Activity %</th>
+              <th onclick="sortTableById('empTblBody',6,this)">Last Active</th>
+              <th onclick="sortTableById('empTblBody',7,this)">Status</th>
+            </tr></thead>
+            <tbody id="empTblBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGE 3: Reports -->
+    <div class="page" id="pg-reports">
+      <div class="sub-tabs">
+        <div class="sub-tab active" onclick="showReportTab('time',this)">Time Report</div>
+        <div class="sub-tab" onclick="showReportTab('activity',this)">Activity Report</div>
+        <div class="sub-tab" onclick="showReportTab('project',this)">Project Report</div>
+      </div>
+
+      <!-- Time Report -->
+      <div class="sub-panel active" id="rpt-time">
+        <div class="summary-cards" id="timeSummaryCards">
+          <div class="sc"><div class="sk" style="height:26px"></div></div>
+          <div class="sc"><div class="sk" style="height:26px"></div></div>
+          <div class="sc"><div class="sk" style="height:26px"></div></div>
+          <div class="sc"><div class="sk" style="height:26px"></div></div>
+        </div>
+        <div class="report-controls">
+          <input placeholder="Search member..." oninput="filterReportTable('timeRptBody',this.value)"/>
+          <button class="export-btn" onclick="exportCSV('time')">↓ Export CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="timeRptTbl">
+            <thead><tr>
+              <th onclick="sortTableById('timeRptBody',0,this)">Member</th>
+              <th onclick="sortTableById('timeRptBody',1,this)">Mon</th>
+              <th onclick="sortTableById('timeRptBody',2,this)">Tue</th>
+              <th onclick="sortTableById('timeRptBody',3,this)">Wed</th>
+              <th onclick="sortTableById('timeRptBody',4,this)">Thu</th>
+              <th onclick="sortTableById('timeRptBody',5,this)">Fri</th>
+              <th onclick="sortTableById('timeRptBody',6,this)">Sat</th>
+              <th onclick="sortTableById('timeRptBody',7,this)">Sun</th>
+              <th onclick="sortTableById('timeRptBody',8,this)">Total</th>
+              <th onclick="sortTableById('timeRptBody',9,this)">Billable</th>
+            </tr></thead>
+            <tbody id="timeRptBody"><tr><td colspan="10" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Activity Report -->
+      <div class="sub-panel" id="rpt-activity">
+        <div class="report-controls">
+          <input placeholder="Search member..." oninput="filterReportTable('actRptBody',this.value)"/>
+          <button class="export-btn" onclick="exportCSV('activity')">↓ Export CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="actRptTbl">
+            <thead><tr>
+              <th>#</th>
+              <th onclick="sortTableById('actRptBody',1,this)">Member</th>
+              <th onclick="sortTableById('actRptBody',2,this)">Team</th>
+              <th onclick="sortTableById('actRptBody',3,this)">Keyboard</th>
+              <th onclick="sortTableById('actRptBody',4,this)">Mouse</th>
+              <th onclick="sortTableById('actRptBody',5,this)">Activity %</th>
+              <th onclick="sortTableById('actRptBody',6,this)">Tracked</th>
+            </tr></thead>
+            <tbody id="actRptBody"><tr><td colspan="7" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Project Report -->
+      <div class="sub-panel" id="rpt-project">
+        <div class="report-controls">
+          <input placeholder="Search project..." oninput="filterReportTable('projRptBody',this.value)"/>
+          <button class="export-btn" onclick="exportCSV('project')">↓ Export CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl" id="projRptTbl">
+            <thead><tr>
+              <th onclick="sortTableById('projRptBody',0,this)">Project</th>
+              <th onclick="sortTableById('projRptBody',1,this)">Hours</th>
+              <th onclick="sortTableById('projRptBody',2,this)">% of Total</th>
+              <th>Visual</th>
+            </tr></thead>
+            <tbody id="projRptBody"><tr><td colspan="4" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+
+    </div>
+
+    <!-- PAGE 4: Settings -->
+    <div class="page" id="pg-settings">
+      <div class="settings-tabs">
+        <div class="settings-tab active" onclick="showSettingsTab('general',this)">General</div>
+        <div class="settings-tab" onclick="showSettingsTab('api',this)">API</div>
+        <div class="settings-tab" onclick="showSettingsTab('notifications',this)">Notifications</div>
+        <div class="settings-tab" onclick="showSettingsTab('display',this)">Display</div>
+      </div>
+
+      <!-- General -->
+      <div class="settings-panel active" id="st-general">
+        <div class="settings-section">
+          <h3>Organisation</h3>
+          <div class="setting-row">
+            <div><div class="setting-label">Organisation Name</div></div>
+            <div class="setting-value">GP Bookkeeper Pty Ltd</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Organisation ID</div></div>
+            <div class="setting-value">564198</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Directors</div></div>
+            <div class="setting-value">Todd Cameron · Sachin Patel</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">General Manager</div></div>
+            <div class="setting-value">Ryan Sela</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Pods</div></div>
+            <div class="setting-value" style="text-align:right;font-size:11px;line-height:1.7">
+              MAS Legato — Ridmal Perera (SL)<br>
+              Jemajo — Mahesh Kumara (SL)<br>
+              Philippines — Jobelle Abano
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Timezone</div></div>
+            <div class="setting-value">Asia/Colombo</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Plan Status</div></div>
+            <div class="setting-value c-green">Active</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Member Count</div></div>
+            <div class="setting-value" id="st-member-count">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- API -->
+      <div class="settings-panel" id="st-api">
+        <div class="settings-section">
+          <h3>API Configuration</h3>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Refresh Token</div>
+              <div class="setting-desc">Used to authenticate Hubstaff API requests</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="masked-val" id="tokenDisplay">eyJ0eXAi••••••••</span>
+              <button class="icon-btn" onclick="toggleTokenReveal()">Reveal</button>
+              <button class="icon-btn" onclick="copyToken()">Copy</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Token Expiry</div></div>
+            <div class="setting-value" id="tokenExpiry">—</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">API Base URL</div></div>
+            <div class="setting-value" style="font-family:monospace;font-size:11px">/hubstaff-proxy/v2</div>
+          </div>
+          <div class="setting-row">
+            <div><div class="setting-label">Proxy Status</div></div>
+            <div class="setting-value"><span class="status-dot"></span>Connected</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notifications -->
+      <div class="settings-panel" id="st-notifications">
+        <div class="settings-section">
+          <h3>Alerts &amp; Notifications</h3>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Activity Threshold Alert</div>
+              <div class="setting-desc">Alert when activity drops below threshold</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label class="toggle-sw"><input type="checkbox" id="notif-activity" onchange="saveSettings()"><span class="slider"></span></label>
+              <input type="range" class="range-slider" id="notif-threshold" min="0" max="100" value="30" oninput="document.getElementById('notif-threshold-val').textContent=this.value+'%';saveSettings()"/>
+              <span id="notif-threshold-val" style="font-size:12px;color:#6b7280;width:34px">30%</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Idle Alert (minutes)</div>
+              <div class="setting-desc">Alert after this many minutes of idle time</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <label class="toggle-sw"><input type="checkbox" id="notif-idle" onchange="saveSettings()"><span class="slider"></span></label>
+              <input type="number" class="setting-input" id="notif-idle-mins" value="20" min="1" max="120" style="width:80px" onchange="saveSettings()"/>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Daily Summary</div>
+              <div class="setting-desc">Receive a daily summary of team activity</div>
+            </div>
+            <label class="toggle-sw"><input type="checkbox" id="notif-daily" onchange="saveSettings()"><span class="slider"></span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="settings-panel" id="st-display">
+        <div class="settings-section">
+          <h3>Display Preferences</h3>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Default Date Range</div>
+              <div class="setting-desc">Applied automatically on page load</div>
+            </div>
+            <select class="setting-input" id="disp-defaultRange" onchange="saveSettings();setRange(this.value,document.querySelector('[data-range=\''+this.value+'\']'))">
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="last30">Last 30 Days</option>
+              <option value="last90">Last 90 Days</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Items Per Page</div>
+              <div class="setting-desc">Rows shown in report tables</div>
+            </div>
+            <select class="setting-input" id="disp-perPage" onchange="saveSettings()" style="width:100px">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Sidebar Collapsed by Default</div>
+              <div class="setting-desc">Start with sidebar in icon-only mode</div>
+            </div>
+            <label class="toggle-sw"><input type="checkbox" id="disp-collapsed" onchange="saveSettings()"><span class="slider"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /pageArea -->
+</div><!-- /appWrap -->
+
+<!-- ── Slide panel overlay ── -->
+<div id="slideOverlay" onclick="closeSlidePanel()"></div>
+<div id="slidePanel">
+  <button class="sp-close" onclick="closeSlidePanel()">✕</button>
+  <div id="slidePanelContent"></div>
+</div>
+
+<script>
+/* ============================================================
+   CONSTANTS & STATE
+   ============================================================ */
+const ORG = 564198;
+const COLORS = ['#4f8ef7','#a78bfa','#22c55e','#f97316','#f06292','#fbbf24','#60a5fa','#34d399','#e879f9','#94a3b8'];
+const TEAM_COLORS = {170701:'rgba(34,197,94,.15)',170704:'rgba(249,115,22,.15)',212392:'rgba(79,142,247,.15)',228772:'rgba(167,139,250,.15)'};
+const TEAM_TC    = {170701:'#22c55e',             170704:'#f97316',            212392:'#4f8ef7',            228772:'#a78bfa'};
+const TEAM_DISPLAY = {170701:'Jemajo',170704:'Philippines',212392:'MAS Legato',228772:'Head Office'};
+const TEAM_LEADER  = {170701:'Mahesh Kumara',170704:'Jobelle Abano',212392:'Ridmal Perera',228772:null};
+const TEAM_REGION  = {170701:'Sri Lanka',170704:'Philippines',212392:'Sri Lanka',228772:'Australia'};
+
+let currentRange = 'today';
+let allMembers = [], allProjects = [], allActivities = [], allUsers = {}, allTeams = [], teamMemberMap = {};
+let allTimeEntries = [], allApps = [];
+let entriesLoaded = false, appsLoaded = false;
+let actCacheStart = '', actCacheStop = '';
+let trendDays = 30;
+let trendCustStart = '', trendCustStop = '';
+let liveActs = [], lastLiveRefresh = 0, liveRefreshTimer = null;
+let memberRows = [];
+let customStart = '', customStop = '';
+let currentTeamView = 'grid';
+let tokenRevealed = false;
+let currentPage = 'overview';
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+function pad(n){ return String(n).padStart(2,'0'); }
+function fmt(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function today(){ return fmt(new Date()); }
+function secsToHM(s){ if(!s)return'0m'; const h=Math.floor(s/3600),m=Math.floor((s%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; }
+function secsToH(s){ return s?(s/3600).toFixed(1):'0'; }
+function actPct(a){ return a.input_tracked>0?Math.round((a.overall/a.input_tracked)*100):0; }
+function actColor(p){ return p>=70?'#22c55e':p>=40?'#4f8ef7':p>=20?'#f97316':'#ef4444'; }
+function wasActive(iso){ return iso&&(Date.now()-new Date(iso).getTime())<30*60*1000; }
+function initials(name){ return name.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase(); }
+
+/* ============================================================
+   DATE RANGE
+   ============================================================ */
+function dateRange(){
+  const now=new Date(), t=today();
+  if(currentRange==='today')  return{start:t,stop:t};
+  if(currentRange==='week'){const d=new Date(now);d.setDate(now.getDate()-now.getDay()+1);return{start:fmt(d),stop:t}}
+  if(currentRange==='month')  return{start:`${now.getFullYear()}-${pad(now.getMonth()+1)}-01`,stop:t}
+  if(currentRange==='last30'){const d=new Date(now);d.setDate(now.getDate()-29);return{start:fmt(d),stop:t}}
+  if(currentRange==='last90'){const d=new Date(now);d.setDate(now.getDate()-89);return{start:fmt(d),stop:t}}
+  if(currentRange==='custom'&&customStart&&customStop)return{start:customStart,stop:customStop}
+  return{start:t,stop:t};
+}
+
+function trendRange(){
+  const t=new Date(),start=new Date(t);start.setDate(t.getDate()-29);
+  return{start:fmt(start),stop:fmt(t)};
+}
+
+function setRange(r,btn){
+  currentRange=r;
+  entriesLoaded=false; appsLoaded=false;
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.getElementById('customPanel').classList.remove('open');
+  renderAll();
+}
+
+function toggleCustomPanel(btn){
+  const panel=document.getElementById('customPanel');
+  const isOpen=panel.classList.toggle('open');
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+  if(isOpen){
+    btn.classList.add('active');
+    const{start,stop}=dateRange();
+    document.getElementById('customFrom').value=start;
+    document.getElementById('customTo').value=stop;
+  }
+}
+
+function applyCustomRange(){
+  const from=document.getElementById('customFrom').value;
+  const to=document.getElementById('customTo').value;
+  if(!from||!to)return;
+  if(from>to){alert('Start date must be on or before end date.');return;}
+  customStart=from;customStop=to;currentRange='custom';
+  entriesLoaded=false; appsLoaded=false;
+  document.querySelectorAll('.range-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('[data-range="custom"]').classList.add('active');
+  renderAll();
+}
+
+/* ============================================================
+   API
+   ============================================================ */
+async function api(path){
+  const r=await fetch(`/hubstaff-proxy/v2${path}`);
+  if(!r.ok)throw new Error(`${r.status} ${path}`);
+  return r.json();
+}
+
+async function apiPaged(path,key){
+  let results=[],pageId=null;
+  do{
+    const url=pageId?`${path}&page_start_id=${pageId}`:path;
+    const d=await api(url);
+    const rows=d[key]||[];
+    results=results.concat(rows);
+    pageId=d.pagination?.next_page_start_id||null;
+  }while(pageId&&results.length<2000);
+  return results;
+}
+
+/* ============================================================
+   LAZY FETCH HELPERS
+   ============================================================ */
+async function fetchActivitiesForRange(start,stop){
+  const results=[];
+  let cur=new Date(start+'T00:00:00');
+  const end=new Date(stop+'T00:00:00');
+  while(cur<=end){
+    const chunkEnd=new Date(cur);chunkEnd.setDate(chunkEnd.getDate()+29);
+    const cs=fmt(cur);
+    const ce=chunkEnd>end?stop:fmt(chunkEnd);
+    const chunk=await apiPaged(
+      `/organizations/${ORG}/activities/daily?date%5Bstart%5D=${cs}&date%5Bstop%5D=${ce}&page_limit=500`,
+      'daily_activities'
+    );
+    results.push(...chunk);
+    cur=new Date(ce+'T00:00:00');cur.setDate(cur.getDate()+1);
+  }
+  return results;
+}
+
+async function ensureTimeEntries(){
+  if(entriesLoaded)return;
+  entriesLoaded=true;
+  try{
+    const{start,stop}=dateRange();
+    allTimeEntries=await apiPaged(
+      `/organizations/${ORG}/time_entries?date%5Bstart%5D=${start}&date%5Bstop%5D=${stop}&page_limit=500`,
+      'time_entries'
+    );
+  }catch(e){allTimeEntries=[];console.warn('[time entries]',e.message);}
+}
+
+async function ensureApps(){
+  if(appsLoaded)return;
+  appsLoaded=true;
+  try{
+    const{start,stop}=dateRange();
+    allApps=await apiPaged(
+      `/organizations/${ORG}/apps?date%5Bstart%5D=${start}&date%5Bstop%5D=${stop}&page_limit=500`,
+      'apps'
+    );
+  }catch(e){allApps=[];console.warn('[apps]',e.message);}
+}
+
+async function fetchScreenshots(uid){
+  try{
+    const{start,stop}=dateRange();
+    const d=await api(`/organizations/${ORG}/screenshots?user_ids=${uid}&date%5Bstart%5D=${start}&date%5Bstop%5D=${stop}&page_limit=20`);
+    return(d.screenshots||[]).sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
+  }catch(e){return[];}
+}
+
+/* ============================================================
+   LOADING PROGRESS
+   ============================================================ */
+const LoadingProgress={
+  total:10, done:0,
+  _bar:null,_pct:null,_status:null,
+  _init(){
+    this._bar=document.getElementById('lsBar');
+    this._pct=document.getElementById('lsPct');
+    this._status=document.getElementById('lsStatus');
+    this.done=0;this._render(0);
+  },
+  setStatus(msg){ if(!this._status)this._init(); this._status.textContent=msg; },
+  tick(msg){
+    if(!this._bar)this._init();
+    this.done=Math.min(this.done+1,this.total-1);
+    this._render(Math.round((this.done/this.total)*100));
+    if(msg)this.setStatus(msg);
+  },
+  _render(pct){ this._bar.style.width=pct+'%'; this._pct.textContent=pct+'%'; },
+  finish(){
+    if(!this._bar)this._init();
+    this._render(100);this._status.textContent='Done!';
+    setTimeout(()=>{
+      const el=document.getElementById('loadingScreen');
+      if(el){el.classList.add('fade-out');setTimeout(()=>{el.style.display='none';},520);}
+    },400);
+  }
+};
+
+/* ============================================================
+   LOAD ALL
+   ============================================================ */
+async function loadAll(){
+  LoadingProgress._init();
+  document.getElementById('lb').classList.add('on');
+  try{
+    LoadingProgress.setStatus('Fetching team members...');
+    const[membersRes,projectsRes,teamsRes]=await Promise.all([
+      api(`/organizations/${ORG}/members?include_removed=false&page_limit=200`),
+      api(`/organizations/${ORG}/projects?status=active&page_limit=200`),
+      api(`/organizations/${ORG}/teams?page_limit=50`)
+    ]);
+    allMembers=membersRes.members||[];
+    allProjects=projectsRes.projects||[];
+    allTeams=teamsRes.teams||[];
+    LoadingProgress.tick('Loading user profiles...');
+
+    const uids=[...new Set(allMembers.map(m=>m.user_id))].filter(uid=>!allUsers[uid]);
+    if(uids.length) await Promise.all(uids.map(async uid=>{
+      try{const u=await api(`/users/${uid}`);if(u.user)allUsers[uid]=u.user;}catch(e){}
+    }));
+    LoadingProgress.tick('Building team structure...');
+
+    teamMemberMap={};
+    await Promise.all(allTeams.map(async t=>{
+      try{
+        const r=await api(`/teams/${t.id}/members?page_limit=100`);
+        teamMemberMap[t.id]=(r.team_members||r.members||[]).map(m=>m.user_id);
+      }catch(e){}
+    }));
+    LoadingProgress.tick('Pulling activity data...');
+
+    const{start:tStart,stop:tStop}=trendRange();
+    allActivities=await apiPaged(
+      `/organizations/${ORG}/activities/daily?date%5Bstart%5D=${tStart}&date%5Bstop%5D=${tStop}&page_limit=500`,
+      'daily_activities'
+    );
+    actCacheStart=tStart; actCacheStop=tStop;
+    LoadingProgress.tick('Fetching live data...');
+    await fetchLiveToday();
+    if(liveRefreshTimer)clearInterval(liveRefreshTimer);
+    liveRefreshTimer=setInterval(silentRefresh,60000);
+    LoadingProgress.tick('Rendering dashboard...');
+
+    LoadingProgress.finish();
+    await renderAll();
+  }catch(e){
+    console.error('[Hubstaff]',e);
+    LoadingProgress.finish();
+    document.getElementById('stats').innerHTML=`<div class="err-card"><div style="color:#ef4444;font-weight:700;margin-bottom:6px">⚠ Failed to load</div><div style="color:#6b7280;font-size:12px">${e.message}</div><button onclick="loadAll()" style="margin-top:10px;background:#1e2230;border:1px solid #2d3348;color:#9ca3af;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">↻ Retry</button></div>`;
+  }finally{
+    document.getElementById('lb').classList.remove('on');
+  }
+}
+
+/* ============================================================
+   RENDER ALL (Overview)
+   ============================================================ */
+async function renderAll(){
+  const{start,stop}=dateRange();
+  // If selected range extends beyond cached window, fetch missing chunks (API limit: 31 days/call)
+  if(actCacheStart&&(start<actCacheStart||stop>actCacheStop)){
+    document.getElementById('lb').classList.add('on');
+    allActivities=await fetchActivitiesForRange(start,stop);
+    actCacheStart=start; actCacheStop=stop;
+    document.getElementById('lb').classList.remove('on');
+  }
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+
+  const projMap={};allProjects.forEach(p=>projMap[p.id]=p.name);
+  const userTeamMap={};
+  allTeams.forEach(t=>{(teamMemberMap[t.id]||[]).forEach(uid=>userTeamMap[uid]=t);});
+
+  const userAct={};
+  rangeActs.forEach(a=>{
+    if(!userAct[a.user_id])userAct[a.user_id]={tracked:0,billable:0,keyboard:0,mouse:0,overall:0,input_tracked:0};
+    const u=userAct[a.user_id];
+    u.tracked+=a.tracked||0;u.billable+=a.billable||0;
+    u.keyboard+=a.keyboard||0;u.mouse+=a.mouse||0;
+    u.overall+=a.overall||0;u.input_tracked+=a.input_tracked||0;
+  });
+
+  const projAct={};
+  rangeActs.forEach(a=>{projAct[a.project_id]=(projAct[a.project_id]||0)+(a.tracked||0);});
+
+  const totalTracked=rangeActs.reduce((s,a)=>s+(a.tracked||0),0);
+  const totalBillable=rangeActs.reduce((s,a)=>s+(a.billable||0),0);
+  const activeMembers=allMembers.filter(m=>wasActive(m.last_client_activity));
+  const allOverall=rangeActs.reduce((s,a)=>s+(a.overall||0),0);
+  const allInput=rangeActs.reduce((s,a)=>s+(a.input_tracked||0),0);
+  const avgAct=allInput>0?Math.round(allOverall/allInput*100):0;
+  const billablePct=totalTracked>0?Math.round(totalBillable/totalTracked*100):0;
+
+  // Stats cards
+  document.getElementById('stats').innerHTML=`
+    <div class="sc"><div class="sc-lbl">Total Tracked</div><div class="sc-val c-blue">${secsToHM(totalTracked)}</div><div class="sc-sub">all members</div></div>
+    <div class="sc"><div class="sc-lbl">Avg Activity</div><div class="sc-val" style="color:${actColor(avgAct)}">${avgAct}%</div><div class="sc-sub">kbd + mouse</div></div>
+    <div class="sc"><div class="sc-lbl">Active Now</div><div class="sc-val c-green">${activeMembers.length}</div><div class="sc-sub">of ${allMembers.length} members</div></div>
+    <div class="sc" style="cursor:pointer;transition:border-color .15s" onmouseover="this.style.borderColor='rgba(167,139,250,.4)'" onmouseout="this.style.borderColor=''" onclick="showProjectsModal()"><div class="sc-lbl">Active Projects ↗</div><div class="sc-val c-purple">${allProjects.length}</div><div class="sc-sub">click to view all</div></div>
+    <div class="sc"><div class="sc-lbl">Teams</div><div class="sc-val" style="color:#fbbf24">${allTeams.length}</div><div class="sc-sub">${allTeams.map(t=>TEAM_DISPLAY[t.id]||t.name).join(', ')}</div></div>
+  `;
+
+  // Activity trend chart
+  {
+    let tS,tE;
+    if(trendDays==='custom'&&trendCustStart&&trendCustStop){tS=trendCustStart;tE=trendCustStop;}
+    else{tE=fmt(new Date());const sd=new Date();sd.setDate(sd.getDate()-(trendDays-1));tS=fmt(sd);}
+    renderTrendChart(tS,tE,allActivities.filter(a=>a.date>=tS&&a.date<=tE));
+  }
+
+  // Build memberRows
+  memberRows=allMembers.map((m,i)=>{
+    const u=allUsers[m.user_id]||{};
+    const act=userAct[m.user_id]||{tracked:0,billable:0,keyboard:0,mouse:0,overall:0,input_tracked:0};
+    const team=userTeamMap[m.user_id];
+    const name=u.name||`User ${m.user_id}`;
+    const lastAct=m.last_client_activity;
+    let lastActive='Never';
+    if(lastAct){
+      const diff=Math.round((Date.now()-new Date(lastAct).getTime())/60000);
+      lastActive=diff<1?'Just now':diff<60?`${diff}m ago`:diff<1440?`${Math.floor(diff/60)}h ago`:`${Math.floor(diff/1440)}d ago`;
+    }
+    return{
+      user_id:m.user_id,name,
+      email:u.email||'',
+      role:m.effective_role?.replace(/_/g,' ')||'member',
+      teamId:team?.id,teamName:TEAM_DISPLAY[team?.id]||team?.name||'—',
+      act,online:wasActive(lastAct),lastActive,
+      initials:initials(name),
+      color:COLORS[i%COLORS.length],color2:COLORS[(i+3)%COLORS.length]
+    };
+  }).sort((a,b)=>(b.act.tracked||0)-(a.act.tracked||0));
+
+  document.getElementById('memberBadge').textContent=memberRows.length;
+  renderMemberTable(memberRows);
+
+  // Projects bar
+  const sortedProj=Object.entries(projAct).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const maxProj=sortedProj[0]?.[1]||1;
+  document.getElementById('projBadge').textContent=sortedProj.length;
+  document.getElementById('projBars').innerHTML=sortedProj.map(([pid,secs],i)=>`
+    <div class="br">
+      <div class="bl" title="${projMap[pid]||'Unknown'}">${projMap[pid]||'Unknown'}</div>
+      <div class="bt"><div class="bf" style="width:${secs/maxProj*100}%;background:${COLORS[i%COLORS.length]}"></div></div>
+      <div class="bv">${secsToHM(secs)}</div>
+    </div>`).join('')||'<div class="empty">No project activity</div>';
+
+  // Teams breakdown
+  const teamActMap={};
+  rangeActs.forEach(a=>{
+    const t=userTeamMap[a.user_id];if(!t)return;
+    if(!teamActMap[t.id])teamActMap[t.id]={secs:0,members:{}};
+    teamActMap[t.id].secs+=a.tracked||0;
+    teamActMap[t.id].members[a.user_id]=(teamActMap[t.id].members[a.user_id]||0)+(a.tracked||0);
+  });
+  document.getElementById('teamCards').innerHTML=allTeams.map(t=>{
+    const ta=teamActMap[t.id]||{secs:0,members:{}};
+    const topMembers=Object.entries(ta.members).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const tc=TEAM_TC[t.id]||'#4f8ef7';
+    return`<div class="team-card" style="border-color:${tc}30">
+      <div class="tc-hdr">
+        <div>
+          <div class="tc-name" style="color:${tc}">${TEAM_DISPLAY[t.id]||t.name}</div>
+          ${TEAM_LEADER[t.id]?`<div style="font-size:10px;color:#4b5563;margin-top:2px">Lead: ${TEAM_LEADER[t.id]}</div>`:''}
+          ${TEAM_REGION[t.id]?`<div style="font-size:9px;color:#374151;margin-top:1px">📍 ${TEAM_REGION[t.id]}</div>`:''}
+        </div>
+        <div class="tc-hours">${secsToHM(ta.secs)}</div>
+      </div>
+      <div class="tc-members">${topMembers.map(([uid,s])=>`
+        <div class="tc-member">
+          <span class="tc-mname">${(allUsers[uid]?.name||`User ${uid}`).split(' ')[0]}</span>
+          <span class="tc-mhrs" style="color:${tc}">${secsToHM(s)}</span>
+        </div>`).join('')||'<div style="font-size:11px;color:#374151">No tracked time</div>'}
+      </div></div>`;
+  }).join('');
+
+  // 7-day sparklines
+  const spark7=[];let sd=new Date();sd.setDate(sd.getDate()-6);
+  for(let i=0;i<7;i++){spark7.push(fmt(new Date(sd)));sd.setDate(sd.getDate()+1);}
+  const sparkData=memberRows.map(m=>{
+    const days=spark7.map(dd=>allActivities.filter(a=>a.user_id===m.user_id&&a.date===dd).reduce((s,a)=>s+(a.tracked||0),0));
+    const total=days.reduce((s,v)=>s+v,0);
+    return{name:m.name.split(' ')[0],days,total,color:m.color};
+  }).filter(m=>m.total>0).sort((a,b)=>b.total-a.total);
+  const maxSparkDay=Math.max(...sparkData.flatMap(m=>m.days),1);
+  document.getElementById('sparklines').innerHTML=sparkData.map(m=>`
+    <div class="spark-row">
+      <div class="spark-name" title="${m.name}">${m.name}</div>
+      <div class="sparkline">${m.days.map(v=>`<div class="sp-bar" style="height:${Math.max(v/maxSparkDay*100,2)}%;background:${m.color}40;border-top:2px solid ${m.color}"></div>`).join('')}</div>
+      <div class="spark-total">${secsToHM(m.total)}</div>
+    </div>`).join('')||'<div class="empty">No data</div>';
+
+  // Top performers
+  const periodLabel={today:'Today',week:'This Week',month:'This Month',last30:'Last 30 Days',last90:'Last 90 Days',custom:'Custom Range'}[currentRange]||'Custom Range';
+  document.getElementById('perfPeriod').textContent=periodLabel;
+  const topPerf=memberRows.filter(m=>m.act.tracked>0).slice(0,10);
+  const maxPerf=topPerf[0]?.act.tracked||1;
+  document.getElementById('perfBars').innerHTML=topPerf.map((m,i)=>`
+    <div class="br">
+      <div class="bl" title="${m.name}">${m.name.split(' ')[0]}</div>
+      <div class="bt"><div class="bf" style="width:${m.act.tracked/maxPerf*100}%;background:${COLORS[i%COLORS.length]}"></div></div>
+      <div class="bv">${secsToH(m.act.tracked)}h</div>
+    </div>`).join('')||'<div class="empty">No tracked time</div>';
+
+  // Update settings member count
+  document.getElementById('st-member-count').textContent=allMembers.length;
+
+  // Populate team filter
+  const tf=document.getElementById('teamFilter');
+  const curr=tf.value;
+  tf.innerHTML='<option value="">All Teams</option>'+allTeams.map(t=>`<option value="${t.id}">${TEAM_DISPLAY[t.id]||t.name}</option>`).join('');
+  tf.value=curr;
+
+  // Render team page if active
+  if(currentPage==='team') renderTeamPage();
+  if(currentPage==='reports') renderReports();
+}
+
+/* ============================================================
+   OVERVIEW MEMBER TABLE
+   ============================================================ */
+function renderMemberTable(rows){
+  document.getElementById('memberBody').innerHTML=rows.map(m=>{
+    const act=m.act,pct=actPct(act);
+    const teamColor=TEAM_TC[m.teamId]||'#6b7280';
+    return`<tr>
+      <td><div class="name-cell">
+        <div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+        <div><div class="nm"><span class="online-dot ${m.online?'on':'off'}"></span>${m.name}</div><div class="ne">${m.email}</div></div>
+      </div></td>
+      <td><span class="team-tag" style="background:${TEAM_COLORS[m.teamId]||'#1e2230'};color:${teamColor}">${m.teamName}</span></td>
+      <td><span class="role-tag">${m.role}</span></td>
+      <td style="color:#d1d5db;font-weight:600">${secsToHM(act.tracked)}</td>
+      <td style="color:#9ca3af">${secsToHM(act.keyboard)}</td>
+      <td style="color:#9ca3af">${secsToHM(act.mouse)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div class="act-bar"><div class="act-fill" style="width:${Math.min(pct,100)}%;background:${actColor(pct)}"></div></div>
+        <span style="color:${actColor(pct)};font-weight:700">${pct}%</span>
+      </div></td>
+      <td style="color:#6b7280">${m.lastActive}</td>
+      <td class="${m.online?'status-on':'status-off'}">${m.online?'● Online':'○ Offline'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" class="empty">No members found</td></tr>';
+}
+
+function filterMembers(){
+  const q=document.getElementById('memberSearch').value.toLowerCase();
+  const rows=q?memberRows.filter(r=>r.name.toLowerCase().includes(q)||r.email.toLowerCase().includes(q)):memberRows;
+  renderMemberTable(rows);
+}
+
+/* ============================================================
+   PAGE NAVIGATION
+   ============================================================ */
+const PAGE_TITLES={overview:'Overview',team:'Team',reports:'Reports',settings:'Settings'};
+
+function showPage(page,el){
+  currentPage=page;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pg-'+page).classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.getElementById('pageTitle').textContent=PAGE_TITLES[page]||page;
+  document.getElementById('pageArea').scrollTop=0;
+  if(page==='team')renderTeamPage();
+  if(page==='reports')renderReports();
+  if(page==='settings')loadSettings();
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  localStorage.setItem('sb_collapsed',sb.classList.contains('collapsed')?'1':'0');
+}
+
+/* ============================================================
+   TEAM PAGE
+   ============================================================ */
+function applyTeamFilters(){
+  const q=(document.getElementById('teamSearch').value||'').toLowerCase();
+  const teamId=document.getElementById('teamFilter').value;
+  const status=document.getElementById('statusFilter').value;
+  let rows=memberRows;
+  if(q)rows=rows.filter(m=>m.name.toLowerCase().includes(q)||m.email.toLowerCase().includes(q));
+  if(teamId)rows=rows.filter(m=>String(m.teamId)===teamId);
+  if(status==='online')rows=rows.filter(m=>m.online);
+  if(status==='offline')rows=rows.filter(m=>!m.online);
+  document.getElementById('teamCount').textContent=rows.length;
+  if(currentTeamView==='grid')renderEmpGrid(rows);
+  else renderEmpTable(rows);
+}
+
+function switchTeamView(view,btn){
+  currentTeamView=view;
+  document.querySelectorAll('.toggle-view button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('empGrid').style.display=view==='grid'?'grid':'none';
+  document.getElementById('empTable').style.display=view==='table'?'block':'none';
+  applyTeamFilters();
+}
+
+function renderTeamPage(){
+  document.getElementById('teamCount').textContent=memberRows.length;
+  renderEmpGrid(memberRows);
+  renderEmpTable(memberRows);
+}
+
+function renderEmpGrid(rows){
+  const spark7=[];let sd=new Date();sd.setDate(sd.getDate()-6);
+  for(let i=0;i<7;i++){spark7.push(fmt(new Date(sd)));sd.setDate(sd.getDate()+1);}
+  const maxSecs=Math.max(...rows.map(m=>m.act.tracked),1);
+
+  document.getElementById('empGrid').innerHTML=rows.map(m=>{
+    const pct=actPct(m.act);
+    const teamColor=TEAM_TC[m.teamId]||'#6b7280';
+    const days=spark7.map(dd=>allActivities.filter(a=>a.user_id===m.user_id&&a.date===dd).reduce((s,a)=>s+(a.tracked||0),0));
+    const maxDay=Math.max(...days,1);
+    const sparkHtml=days.map(v=>`<div class="ms-bar" style="height:${Math.max(v/maxDay*100,4)}%;background:${m.color}60;border-top:2px solid ${m.color}"></div>`).join('');
+    return`<div class="emp-card" onclick="openEmployeePanel(${m.user_id})">
+      <div class="emp-card-top">
+        <div class="av44" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+        <div class="emp-card-info">
+          <div class="emp-card-name">${m.name}</div>
+          <div class="emp-card-email">${m.email}</div>
+          <div class="emp-card-badges">
+            <span class="badge badge-role">${m.role}</span>
+            ${m.teamName!=='—'?`<span class="badge" style="background:${TEAM_COLORS[m.teamId]||'#1e2230'};color:${teamColor}">${m.teamName}</span>`:''}
+            <span class="badge ${m.online?'badge-online':'badge-offline'}">${m.online?'● Online':'○ Offline'}</span>
+          </div>
+        </div>
+      </div>
+      <div class="emp-stats">
+        <div class="emp-stat"><div class="emp-stat-lbl">Tracked</div><div class="emp-stat-val c-blue">${secsToHM(m.act.tracked)}</div></div>
+        <div class="emp-stat"><div class="emp-stat-lbl">Activity</div><div class="emp-stat-val" style="color:${actColor(pct)}">${pct}%</div></div>
+        <div class="emp-stat"><div class="emp-stat-lbl">Keyboard</div><div class="emp-stat-val" style="color:#9ca3af">${secsToHM(m.act.keyboard)}</div></div>
+      </div>
+      <div class="mini-spark" style="height:28px">${sparkHtml}</div>
+    </div>`;
+  }).join('')||'<div class="empty" style="grid-column:1/-1">No employees match filters</div>';
+}
+
+function renderEmpTable(rows){
+  document.getElementById('empTblBody').innerHTML=rows.map(m=>{
+    const pct=actPct(m.act);
+    const teamColor=TEAM_TC[m.teamId]||'#6b7280';
+    return`<tr style="cursor:pointer" onclick="openEmployeePanel(${m.user_id})">
+      <td><div class="name-cell">
+        <div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+        <div><div class="nm">${m.name}</div><div class="ne">${m.email}</div></div>
+      </div></td>
+      <td><span class="team-tag" style="background:${TEAM_COLORS[m.teamId]||'#1e2230'};color:${teamColor}">${m.teamName}</span></td>
+      <td><span class="role-tag">${m.role}</span></td>
+      <td style="color:#d1d5db;font-weight:600">${secsToHM(m.act.tracked)}</td>
+      <td><div style="display:flex;align-items:center;gap:6px">
+        <div class="act-bar"><div class="act-fill" style="width:${Math.min(pct,100)}%;background:${actColor(pct)}"></div></div>
+        <span style="color:${actColor(pct)};font-weight:700">${pct}%</span>
+      </div></td>
+      <td style="color:#6b7280">${m.lastActive}</td>
+      <td class="${m.online?'status-on':'status-off'}">${m.online?'● Online':'○ Offline'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="8" class="empty">No employees match filters</td></tr>';
+}
+
+/* ============================================================
+   SLIDE PANEL (Employee detail)
+   ============================================================ */
+function openEmployeePanel(uid){
+  const m=memberRows.find(r=>r.user_id===uid);
+  if(!m)return;
+  const pct=actPct(m.act);
+  const teamColor=TEAM_TC[m.teamId]||'#6b7280';
+
+  // 7-day sparkline
+  const spark7=[];let sd=new Date();sd.setDate(sd.getDate()-6);
+  for(let i=0;i<7;i++){spark7.push(fmt(new Date(sd)));sd.setDate(sd.getDate()+1);}
+  const days7=spark7.map(dd=>allActivities.filter(a=>a.user_id===uid&&a.date===dd).reduce((s,a)=>s+(a.tracked||0),0));
+  const maxDay7=Math.max(...days7,1);
+  const sparkHtml7=days7.map((v,i)=>`<div class="sp-bar" style="flex:1;height:${Math.max(v/maxDay7*100,3)}%;background:${m.color}50;border-top:2px solid ${m.color}" title="${spark7[i]}: ${secsToHM(v)}"></div>`).join('');
+
+  // Top 5 projects
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.user_id===uid&&a.date>=start&&a.date<=stop);
+  const projAct={};
+  rangeActs.forEach(a=>{projAct[a.project_id]=(projAct[a.project_id]||0)+(a.tracked||0);});
+  const projMap={};allProjects.forEach(p=>projMap[p.id]=p.name);
+  const topProj=Object.entries(projAct).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxProj=topProj[0]?.[1]||1;
+
+  document.getElementById('slidePanelContent').innerHTML=`
+    <div class="sp-member-hdr">
+      <div class="av44" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+      <div>
+        <div style="font-size:16px;font-weight:700;color:#f0f2ff">${m.name}</div>
+        <div style="font-size:11px;color:#4b5563;margin-top:2px">${m.email}</div>
+        <div style="display:flex;gap:5px;margin-top:5px">
+          <span class="badge badge-role">${m.role}</span>
+          ${m.teamName!=='—'?`<span class="badge" style="background:${TEAM_COLORS[m.teamId]||'#1e2230'};color:${teamColor}">${m.teamName}</span>`:''}
+          <span class="badge ${m.online?'badge-online':'badge-offline'}">${m.online?'● Online':'○ Offline'}</span>
+        </div>
+      </div>
+    </div>
+    <div class="sp-stat-grid">
+      <div class="sp-stat"><div class="sp-stat-lbl">Tracked</div><div class="sp-stat-val c-blue">${secsToHM(m.act.tracked)}</div></div>
+      <div class="sp-stat"><div class="sp-stat-lbl">Activity</div><div class="sp-stat-val" style="color:${actColor(pct)}">${pct}%</div></div>
+      <div class="sp-stat"><div class="sp-stat-lbl">Last Active</div><div class="sp-stat-val" style="font-size:13px;color:#9ca3af">${m.lastActive}</div></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">7-Day Activity</div>
+      <div class="sparkline" style="height:48px">${sparkHtml7}</div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px">
+        <span style="font-size:9px;color:#374151">${spark7[0]}</span>
+        <span style="font-size:9px;color:#374151">${spark7[6]}</span>
+      </div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">Top Projects</div>
+      <div class="bars">${topProj.map(([pid,secs],i)=>`
+        <div class="br">
+          <div class="bl" style="width:110px" title="${projMap[pid]||'Unknown'}">${projMap[pid]||'Unknown'}</div>
+          <div class="bt"><div class="bf" style="width:${secs/maxProj*100}%;background:${COLORS[i%COLORS.length]}"></div></div>
+          <div class="bv">${secsToHM(secs)}</div>
+        </div>`).join('')||'<div class="empty" style="padding:10px">No project data</div>'}
+      </div>
+    </div>`;
+
+  // Screenshots section — loads async
+  document.getElementById('slidePanelContent').innerHTML+=
+    '<div class="sp-section"><div class="sp-section-title">Recent Screenshots</div>'+
+    '<div id="sp-ss-'+uid+'" style="font-size:11px;color:#4b5563;text-align:center;padding:8px 0">Loading…</div></div>';
+  fetchScreenshots(uid).then(shots=>{
+    const el=document.getElementById('sp-ss-'+uid);
+    if(!el)return;
+    if(!shots.length){el.textContent='No screenshots found for this period.';return;}
+    const items=shots.slice(0,6).map(s=>{
+      const t=new Date(s.timestamp).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      const pct=(s.activity_percent||0)+'% active';
+      return'<div style="position:relative;border-radius:6px;overflow:hidden;border:1px solid #1e2230;cursor:pointer" onclick="window.open(\''+s.url+'\',\'_blank\')">'+
+        '<img src="'+s.url+'" style="width:100%;height:68px;object-fit:cover;display:block" loading="lazy" onerror="this.style.display=\'none\'"/>'+
+        '<div style="background:rgba(0,0,0,.65);padding:2px 5px;font-size:9px;color:#9ca3af">'+t+' · '+pct+'</div></div>';
+    }).join('');
+    el.innerHTML='<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px">'+items+'</div>';
+  });
+
+  document.getElementById('slideOverlay').classList.add('open');
+  document.getElementById('slidePanel').classList.add('open');
+}
+
+function closeSlidePanel(){
+  document.getElementById('slideOverlay').classList.remove('open');
+  document.getElementById('slidePanel').classList.remove('open');
+}
+
+/* ============================================================
+   REPORTS PAGE
+   ============================================================ */
+function showReportTab(tab,el){
+  document.querySelectorAll('.sub-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.sub-panel').forEach(p=>p.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.getElementById('rpt-'+tab).classList.add('active');
+  if(tab==='entries') renderTimeEntriesReport();
+  if(tab==='apps')    renderAppUsageReport();
+}
+
+function renderReports(){
+  renderTimeReport();
+  renderActivityReport();
+  renderProjectReport();
+}
+
+function renderTimeReport(){
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+
+  // Build week days starting from Monday within the range
+  const startD=new Date(start),stopD=new Date(stop);
+  const allDays=[];let cur=new Date(startD);
+  while(cur<=stopD){allDays.push(fmt(new Date(cur)));cur.setDate(cur.getDate()+1);}
+
+  // Get Mon-Sun labels for the most recent week in range (last 7 days capped at range)
+  const weekDays=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const last7=allDays.slice(-7);
+  while(last7.length<7)last7.unshift('');
+
+  // Per-member day breakdown
+  const userAct={};
+  rangeActs.forEach(a=>{
+    if(!userAct[a.user_id])userAct[a.user_id]={tracked:0,billable:0,days:{}};
+    const u=userAct[a.user_id];
+    u.tracked+=a.tracked||0;u.billable+=a.billable||0;
+    u.days[a.date]=(u.days[a.date]||0)+(a.tracked||0);
+  });
+
+  const totalTracked=rangeActs.reduce((s,a)=>s+(a.tracked||0),0);
+  const totalBillable=rangeActs.reduce((s,a)=>s+(a.billable||0),0);
+  const billablePct=totalTracked>0?Math.round(totalBillable/totalTracked*100):0;
+  const membersWithTime=Object.keys(userAct).length;
+  const avgPerPerson=membersWithTime>0?(totalTracked/membersWithTime):0;
+
+  document.getElementById('timeSummaryCards').innerHTML=`
+    <div class="sc"><div class="sc-lbl">Total Tracked</div><div class="sc-val c-blue">${secsToHM(totalTracked)}</div></div>
+    <div class="sc"><div class="sc-lbl">Total Billable</div><div class="sc-val c-green">${secsToHM(totalBillable)}</div></div>
+    <div class="sc"><div class="sc-lbl">Billable %</div><div class="sc-val c-orange">${billablePct}%</div></div>
+    <div class="sc"><div class="sc-lbl">Avg / Person</div><div class="sc-val c-purple">${secsToHM(avgPerPerson)}</div></div>
+  `;
+
+  const rows=memberRows.map(m=>{
+    const ua=userAct[m.user_id]||{tracked:0,billable:0,days:{}};
+    const dayVals=last7.map(dd=>{
+      if(!dd)return 0;
+      return ua.days[dd]||0;
+    });
+    return{m,ua,dayVals};
+  }).filter(r=>r.ua.tracked>0).sort((a,b)=>b.ua.tracked-a.ua.tracked);
+
+  function dayCell(secs){
+    if(!secs)return`<td class="day-empty">—</td>`;
+    const h=secs/3600;
+    const cls=h>=6?'day-green':h>=3?'day-orange':'day-red';
+    return`<td class="${cls}">${secsToHM(secs)}</td>`;
+  }
+
+  document.getElementById('timeRptBody').innerHTML=rows.map(({m,ua,dayVals})=>`
+    <tr>
+      <td><div class="name-cell">
+        <div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+        <div><div class="nm">${m.name}</div></div>
+      </div></td>
+      ${dayVals.map(s=>dayCell(s)).join('')}
+      <td style="color:#f0f2ff;font-weight:700">${secsToHM(ua.tracked)}</td>
+      <td style="color:#22c55e">${secsToHM(ua.billable)}</td>
+    </tr>`).join('')||'<tr><td colspan="10" class="empty">No time data for this period</td></tr>';
+}
+
+function renderActivityReport(){
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+  const userTeamMap={};
+  allTeams.forEach(t=>{(teamMemberMap[t.id]||[]).forEach(uid=>userTeamMap[uid]=t);});
+
+  const userAct={};
+  rangeActs.forEach(a=>{
+    if(!userAct[a.user_id])userAct[a.user_id]={tracked:0,keyboard:0,mouse:0,overall:0,input_tracked:0};
+    const u=userAct[a.user_id];
+    u.tracked+=a.tracked||0;u.keyboard+=a.keyboard||0;u.mouse+=a.mouse||0;
+    u.overall+=a.overall||0;u.input_tracked+=a.input_tracked||0;
+  });
+
+  const sorted=memberRows.map(m=>({m,ua:userAct[m.user_id]||{tracked:0,keyboard:0,mouse:0,overall:0,input_tracked:0}}))
+    .filter(r=>r.ua.tracked>0)
+    .sort((a,b)=>{
+      const pa=a.ua.input_tracked>0?Math.round(a.ua.overall/a.ua.input_tracked*100):0;
+      const pb=b.ua.input_tracked>0?Math.round(b.ua.overall/b.ua.input_tracked*100):0;
+      return pb-pa;
+    });
+
+  const teamColor=uid=>TEAM_TC[userTeamMap[uid]?.id]||'#6b7280';
+  const teamName=uid=>TEAM_DISPLAY[userTeamMap[uid]?.id]||userTeamMap[uid]?.name||'—';
+  const teamBg=uid=>TEAM_COLORS[userTeamMap[uid]?.id]||'#1e2230';
+
+  document.getElementById('actRptBody').innerHTML=sorted.map(({m,ua},i)=>{
+    const pct=ua.input_tracked>0?Math.round(ua.overall/ua.input_tracked*100):0;
+    return`<tr>
+      <td style="color:#4b5563;font-weight:600">${i+1}</td>
+      <td><div class="name-cell">
+        <div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div>
+        <div><div class="nm">${m.name}</div></div>
+      </div></td>
+      <td><span class="team-tag" style="background:${teamBg(m.user_id)};color:${teamColor(m.user_id)}">${teamName(m.user_id)}</span></td>
+      <td style="color:#9ca3af">${secsToHM(ua.keyboard)}</td>
+      <td style="color:#9ca3af">${secsToHM(ua.mouse)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="act-bar" style="width:100px"><div class="act-fill" style="width:${Math.min(pct,100)}%;background:${actColor(pct)}"></div></div>
+          <span style="color:${actColor(pct)};font-weight:700">${pct}%</span>
+        </div>
+      </td>
+      <td style="color:#d1d5db;font-weight:600">${secsToHM(ua.tracked)}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="7" class="empty">No activity data</td></tr>';
+}
+
+function renderProjectReport(){
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+  const projMap={};allProjects.forEach(p=>projMap[p.id]=p.name);
+
+  const projAct={};
+  rangeActs.forEach(a=>{projAct[a.project_id]=(projAct[a.project_id]||0)+(a.tracked||0);});
+  const sorted=Object.entries(projAct).sort((a,b)=>b[1]-a[1]);
+  const total=sorted.reduce((s,[,v])=>s+v,0)||1;
+  const maxSecs=sorted[0]?.[1]||1;
+
+  document.getElementById('projRptBody').innerHTML=sorted.map(([pid,secs],i)=>{
+    const pct=Math.round(secs/total*100);
+    return`<tr>
+      <td style="color:#d1d5db;font-weight:600">${projMap[pid]||'Unknown'}</td>
+      <td style="color:#4f8ef7;font-weight:700">${secsToHM(secs)}</td>
+      <td style="color:#9ca3af">${pct}%</td>
+      <td><div class="inline-bar-wrap"><div class="inline-bar" style="width:${secs/maxSecs*160}px;background:${COLORS[i%COLORS.length]}80"></div></div></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="4" class="empty">No project data</td></tr>';
+}
+
+/* ============================================================
+   TIME ENTRIES REPORT
+   ============================================================ */
+async function renderTimeEntriesReport(){
+  const loadEl=document.getElementById('entries-loading');
+  const tblWrap=document.getElementById('entries-tbl-wrap');
+  const ctrl=document.getElementById('entries-controls');
+  loadEl.textContent='Loading time entries…';loadEl.style.display='block';
+  tblWrap.style.display='none';ctrl.style.display='none';
+  await ensureTimeEntries();
+  const projMap={};allProjects.forEach(p=>projMap[p.id]=p.name);
+  if(!allTimeEntries.length){loadEl.textContent='No time entries found for this period.';return;}
+  loadEl.style.display='none';tblWrap.style.display='block';ctrl.style.display='flex';
+  const sorted=[...allTimeEntries].sort((a,b)=>new Date(b.starts_at)-new Date(a.starts_at));
+  document.getElementById('entriesRptBody').innerHTML=sorted.map(e=>{
+    const m=memberRows.find(r=>r.user_id===e.user_id)||{name:'User '+e.user_id,color:'#4f8ef7',color2:'#60a5fa',initials:'??'};
+    const st=new Date(e.starts_at);
+    const dur=e.tracked||0;
+    return`<tr>
+      <td><div class="name-cell"><div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div><div><div class="nm">${m.name}</div></div></div></td>
+      <td style="color:#6b7280">${st.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</td>
+      <td style="color:#9ca3af">${st.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td style="color:#d1d5db">${projMap[e.project_id]||'—'}</td>
+      <td style="color:#4f8ef7;font-weight:600">${secsToHM(dur)}</td>
+      <td style="color:${e.billable?'#22c55e':'#374151'}">${e.billable?secsToHM(e.billable):'—'}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" class="empty">No entries</td></tr>';
+}
+
+/* ============================================================
+   APP USAGE REPORT
+   ============================================================ */
+async function renderAppUsageReport(){
+  const loadEl=document.getElementById('apps-loading');
+  const tblWrap=document.getElementById('apps-tbl-wrap');
+  const ctrl=document.getElementById('apps-controls');
+  loadEl.textContent='Loading app usage…';loadEl.style.display='block';
+  tblWrap.style.display='none';ctrl.style.display='none';
+  await ensureApps();
+  if(!allApps.length){loadEl.textContent='No app/URL tracking data found. This feature may not be enabled on this Hubstaff plan.';return;}
+  loadEl.style.display='none';tblWrap.style.display='block';ctrl.style.display='flex';
+  const sorted=[...allApps].sort((a,b)=>(b.time_spent||0)-(a.time_spent||0)).slice(0,100);
+  const maxTime=sorted[0]?.time_spent||1;
+  document.getElementById('appsRptBody').innerHTML=sorted.map(a=>{
+    const m=memberRows.find(r=>r.user_id===a.user_id)||{name:'User '+a.user_id,color:'#4f8ef7',color2:'#60a5fa',initials:'??'};
+    const pct=Math.round((a.time_spent||0)/maxTime*100);
+    return`<tr>
+      <td><div class="name-cell"><div class="av" style="background:linear-gradient(135deg,${m.color},${m.color2})">${m.initials}</div><div><div class="nm">${m.name}</div></div></div></td>
+      <td style="color:#d1d5db">${a.name||a.url||'Unknown'}</td>
+      <td style="color:#4f8ef7;font-weight:600">${secsToHM(a.time_spent||0)}</td>
+      <td><div class="inline-bar-wrap"><div class="inline-bar" style="width:${Math.round(pct*1.6)}px;background:rgba(79,142,247,0.45)"></div></div></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="4" class="empty">No data</td></tr>';
+}
+
+/* ============================================================
+   EXPORT CSV
+   ============================================================ */
+function exportCSV(type){
+  let csv='',filename='';
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+  const projMap={};allProjects.forEach(p=>projMap[p.id]=p.name);
+
+  if(type==='time'){
+    filename=`time-report-${start}-${stop}.csv`;
+    const userAct={};
+    rangeActs.forEach(a=>{
+      if(!userAct[a.user_id])userAct[a.user_id]={tracked:0,billable:0};
+      userAct[a.user_id].tracked+=a.tracked||0;
+      userAct[a.user_id].billable+=a.billable||0;
+    });
+    csv='Member,Email,Team,Role,Tracked (h),Billable (h)\n';
+    memberRows.forEach(m=>{
+      const ua=userAct[m.user_id]||{tracked:0,billable:0};
+      csv+=`"${m.name}","${m.email}","${m.teamName}","${m.role}",${(ua.tracked/3600).toFixed(2)},${(ua.billable/3600).toFixed(2)}\n`;
+    });
+  } else if(type==='activity'){
+    filename=`activity-report-${start}-${stop}.csv`;
+    const userAct={};
+    rangeActs.forEach(a=>{
+      if(!userAct[a.user_id])userAct[a.user_id]={tracked:0,keyboard:0,mouse:0,overall:0,input_tracked:0};
+      const u=userAct[a.user_id];
+      u.tracked+=a.tracked||0;u.keyboard+=a.keyboard||0;u.mouse+=a.mouse||0;
+      u.overall+=a.overall||0;u.input_tracked+=a.input_tracked||0;
+    });
+    csv='Member,Email,Team,Keyboard (h),Mouse (h),Activity %,Tracked (h)\n';
+    memberRows.forEach(m=>{
+      const ua=userAct[m.user_id]||{tracked:0,keyboard:0,mouse:0,overall:0,input_tracked:0};
+      const pct=ua.input_tracked>0?Math.round(ua.overall/ua.input_tracked*100):0;
+      csv+=`"${m.name}","${m.email}","${m.teamName}",${(ua.keyboard/3600).toFixed(2)},${(ua.mouse/3600).toFixed(2)},${pct},${(ua.tracked/3600).toFixed(2)}\n`;
+    });
+  } else if(type==='project'){
+    filename=`project-report-${start}-${stop}.csv`;
+    const projAct={};
+    rangeActs.forEach(a=>{projAct[a.project_id]=(projAct[a.project_id]||0)+(a.tracked||0);});
+    const total=Object.values(projAct).reduce((s,v)=>s+v,0)||1;
+    csv='Project,Hours,% of Total\n';
+    Object.entries(projAct).sort((a,b)=>b[1]-a[1]).forEach(([pid,secs])=>{
+      csv+=`"${projMap[pid]||'Unknown'}",${(secs/3600).toFixed(2)},${Math.round(secs/total*100)}\n`;
+    });
+  } else if(type==='entries'){
+    filename=`time-entries-${start}-${stop}.csv`;
+    const projMap2={};allProjects.forEach(p=>projMap2[p.id]=p.name);
+    csv='Member,Email,Date,Start Time,Project,Duration (h),Billable (h)\n';
+    [...allTimeEntries].sort((a,b)=>new Date(b.starts_at)-new Date(a.starts_at)).forEach(e=>{
+      const m=memberRows.find(r=>r.user_id===e.user_id)||{name:'User '+e.user_id,email:''};
+      const st=new Date(e.starts_at);
+      csv+=`"${m.name}","${m.email||''}","${st.toLocaleDateString('en-GB')}","${st.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}","${projMap2[e.project_id]||''}",${((e.tracked||0)/3600).toFixed(2)},${((e.billable||0)/3600).toFixed(2)}\n`;
+    });
+  }
+
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+function showSettingsTab(tab,el){
+  document.querySelectorAll('.settings-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.settings-panel').forEach(p=>p.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.getElementById('st-'+tab).classList.add('active');
+}
+
+function saveSettings(){
+  const s={
+    notif_activity:document.getElementById('notif-activity').checked,
+    notif_threshold:document.getElementById('notif-threshold').value,
+    notif_idle:document.getElementById('notif-idle').checked,
+    notif_idle_mins:document.getElementById('notif-idle-mins').value,
+    notif_daily:document.getElementById('notif-daily').checked,
+    disp_defaultRange:document.getElementById('disp-defaultRange').value,
+    disp_perPage:document.getElementById('disp-perPage').value,
+    disp_collapsed:document.getElementById('disp-collapsed').checked
+  };
+  localStorage.setItem('hubstaff_settings',JSON.stringify(s));
+}
+
+function loadSettings(){
+  try{
+    const raw=localStorage.getItem('hubstaff_settings');
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(s.notif_activity!==undefined)document.getElementById('notif-activity').checked=s.notif_activity;
+    if(s.notif_threshold!==undefined){
+      document.getElementById('notif-threshold').value=s.notif_threshold;
+      document.getElementById('notif-threshold-val').textContent=s.notif_threshold+'%';
+    }
+    if(s.notif_idle!==undefined)document.getElementById('notif-idle').checked=s.notif_idle;
+    if(s.notif_idle_mins!==undefined)document.getElementById('notif-idle-mins').value=s.notif_idle_mins;
+    if(s.notif_daily!==undefined)document.getElementById('notif-daily').checked=s.notif_daily;
+    if(s.disp_defaultRange)document.getElementById('disp-defaultRange').value=s.disp_defaultRange;
+    if(s.disp_perPage)document.getElementById('disp-perPage').value=s.disp_perPage;
+    if(s.disp_collapsed!==undefined)document.getElementById('disp-collapsed').checked=s.disp_collapsed;
+  }catch(e){}
+}
+
+/* ============================================================
+   TOKEN
+   ============================================================ */
+const REAL_TOKEN='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9'; // placeholder
+function toggleTokenReveal(){
+  tokenRevealed=!tokenRevealed;
+  const el=document.getElementById('tokenDisplay');
+  const btn=el.nextElementSibling;
+  el.textContent=tokenRevealed?REAL_TOKEN:'eyJ0eXAi••••••••';
+  btn.textContent=tokenRevealed?'Hide':'Reveal';
+}
+function copyToken(){
+  navigator.clipboard.writeText(REAL_TOKEN).then(()=>{
+    const btn=document.querySelector('[onclick="copyToken()"]');
+    const old=btn.textContent;btn.textContent='Copied!';btn.style.color='#22c55e';
+    setTimeout(()=>{btn.textContent=old;btn.style.color='';},1500);
+  }).catch(()=>{});
+}
+
+/* ============================================================
+   TABLE SORT & FILTER
+   ============================================================ */
+const sortState={};
+function sortTableById(tbodyId,colIndex,th){
+  const tbody=document.getElementById(tbodyId);
+  if(!tbody)return;
+  const key=tbodyId+'_'+colIndex;
+  const asc=sortState[key]===undefined?true:!sortState[key];
+  sortState[key]=asc;
+
+  // Update header classes
+  const thead=tbody.closest('table').querySelector('thead');
+  if(thead){
+    thead.querySelectorAll('th').forEach(h=>h.classList.remove('sorted-asc','sorted-desc'));
+    if(th)th.classList.add(asc?'sorted-asc':'sorted-desc');
+  }
+
+  const rows=Array.from(tbody.querySelectorAll('tr'));
+  rows.sort((a,b)=>{
+    const ta=(a.cells[colIndex]?.textContent||'').trim();
+    const tb=(b.cells[colIndex]?.textContent||'').trim();
+    // Try numeric
+    const na=parseFloat(ta.replace(/[^0-9.]/g,''));
+    const nb=parseFloat(tb.replace(/[^0-9.]/g,''));
+    if(!isNaN(na)&&!isNaN(nb))return asc?na-nb:nb-na;
+    return asc?ta.localeCompare(tb):tb.localeCompare(ta);
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+}
+
+function filterReportTable(tbodyId,query){
+  const tbody=document.getElementById(tbodyId);
+  if(!tbody)return;
+  const q=query.toLowerCase();
+  Array.from(tbody.querySelectorAll('tr')).forEach(r=>{
+    const text=r.textContent.toLowerCase();
+    r.style.display=(!q||text.includes(q))?'':'none';
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+(function init(){
+  // Restore sidebar state
+  const collapsed=localStorage.getItem('sb_collapsed')==='1';
+  if(collapsed)document.getElementById('sidebar').classList.add('collapsed');
+
+  // Restore default date range from settings
+  try{
+    const raw=localStorage.getItem('hubstaff_settings');
+    if(raw){
+      const s=JSON.parse(raw);
+      if(s.disp_defaultRange){
+        currentRange=s.disp_defaultRange;
+        document.querySelectorAll('.range-btn').forEach(b=>{
+          b.classList.toggle('active',b.dataset.range===s.disp_defaultRange);
+        });
+      }
+      if(s.disp_collapsed&&s.disp_collapsed!==collapsed){
+        document.getElementById('sidebar').classList.toggle('collapsed',s.disp_collapsed);
+      }
+    }
+  }catch(e){}
+
+  setInterval(updateLiveIndicator,10000);
+  loadAll();
+})();
+
+async function fetchLiveToday(){
+  const t=today();
+  try{
+    const acts=await apiPaged(
+      `/organizations/${ORG}/activities/daily?date%5Bstart%5D=${t}&date%5Bstop%5D=${t}&page_limit=500`,
+      'daily_activities'
+    );
+    if(acts.length>0){
+      liveActs=acts;
+      lastLiveRefresh=Date.now();
+      allActivities=[...allActivities.filter(function(a){return a.date!==t;}), ...liveActs];
+    }
+  }catch(e){console.warn('[liveToday]',e.message);}
+}
+
+async function silentRefresh(){
+  try{
+    const r=await api(`/organizations/${ORG}/members?include_removed=false&page_limit=200`);
+    if(r.members)allMembers=r.members;
+    await fetchLiveToday();
+    renderAll();
+    updateLiveIndicator();
+  }catch(e){console.warn('[silentRefresh]',e.message);}
+}
+
+function updateLiveIndicator(){
+  const el=document.getElementById('liveIndicator');
+  if(!el)return;
+  if(!lastLiveRefresh){el.style.opacity=0;return;}
+  const sec=Math.round((Date.now()-lastLiveRefresh)/1000);
+  el.textContent=sec<10?'● Live':('● '+sec+'s ago');
+  el.style.opacity=1;
+}
+
+function renderTrendChart(start,stop,acts){
+  const byDate={};
+  acts.forEach(a=>{byDate[a.date]=(byDate[a.date]||0)+(a.tracked||0);});
+  const days=[];let d=new Date(start+'T00:00:00');
+  const endD=new Date(stop+'T00:00:00');
+  while(d<=endD){days.push(fmt(d));d.setDate(d.getDate()+1);}
+  const n=days.length;
+  const maxDay=Math.max(...days.map(dd=>byDate[dd]||0),1);
+  const todayStr=today();
+  document.getElementById('trendChart').innerHTML=days.map(dd=>{
+    const v=byDate[dd]||0,pct=Math.round(v/maxDay*100);
+    const col=dd===todayStr?'#4f8ef7':'rgba(79,142,247,0.35)';
+    return'<div class="trend-bar" data-tip="'+dd+': '+secsToHM(v)+'" style="height:'+Math.max(pct,2)+'%;background:'+col+'"></div>';
+  }).join('');
+  // X-axis labels at regular tick intervals
+  const tickStep=n<=30?5:n<=60?10:15;
+  const ticks=[];
+  for(let i=0;i<n;i++){if(i===0||i===n-1||i%tickStep===0)ticks.push({i,dd:days[i]});}
+  document.getElementById('trendAxis').innerHTML=ticks.map(function(t){
+    const pct=n>1?(t.i/(n-1))*100:50;
+    const lbl=new Date(t.dd+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    return'<span style="position:absolute;left:'+pct+'%;transform:translateX(-50%);font-size:9px;color:#6b7280;white-space:nowrap">'+lbl+'</span>';
+  }).join('');
+  document.getElementById('trendPanelTitle').textContent=n+'-Day Activity Trend';
+  document.getElementById('trendSub').textContent='Total: '+secsToHM(acts.reduce(function(s,a){return s+(a.tracked||0);},0));
+}
+
+async function setTrendRange(n,btn){
+  trendDays=n;
+  document.querySelectorAll('.trend-btn').forEach(function(b){b.classList.remove('active');});
+  if(btn)btn.classList.add('active');
+  const cp=document.getElementById('trendCustomPanel');
+  if(n==='custom'){cp.style.display='flex';return;}
+  cp.style.display='none';
+  const tE=fmt(new Date());
+  const sd=new Date();sd.setDate(sd.getDate()-(n-1));
+  const tS=fmt(sd);
+  await ensureActivitiesForTrend(tS,tE);
+  renderTrendChart(tS,tE,allActivities.filter(function(a){return a.date>=tS&&a.date<=tE;}));
+}
+
+async function applyTrendCustom(){
+  const s=document.getElementById('trendCustFrom').value;
+  const e=document.getElementById('trendCustTo').value;
+  if(!s||!e||s>e)return;
+  trendCustStart=s;trendCustStop=e;
+  await ensureActivitiesForTrend(s,e);
+  renderTrendChart(s,e,allActivities.filter(function(a){return a.date>=s&&a.date<=e;}));
+}
+
+async function ensureActivitiesForTrend(start,stop){
+  if(actCacheStart&&start>=actCacheStart&&stop<=actCacheStop)return;
+  const ns=actCacheStart&&actCacheStart<start?actCacheStart:start;
+  const ne=actCacheStop&&actCacheStop>stop?actCacheStop:stop;
+  document.getElementById('lb').classList.add('on');
+  allActivities=await fetchActivitiesForRange(ns,ne);
+  actCacheStart=ns;actCacheStop=ne;
+  document.getElementById('lb').classList.remove('on');
+}
+
+function showProjectsModal(){
+  const{start,stop}=dateRange();
+  const rangeActs=allActivities.filter(a=>a.date>=start&&a.date<=stop);
+  const projAct={};
+  rangeActs.forEach(a=>{
+    if(a.project_id)projAct[a.project_id]=(projAct[a.project_id]||0)+(a.tracked||0);
+  });
+  const sorted=[...allProjects].sort((a,b)=>(projAct[b.id]||0)-(projAct[a.id]||0));
+  const maxH=sorted[0]?projAct[sorted[0].id]||0:1;
+  const rows=sorted.map(p=>{
+    const hrs=projAct[p.id]||0;
+    const pct=maxH>0?Math.round(hrs/maxH*100):0;
+    return '<div style="margin-bottom:14px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">'
+      +'<span style="color:#e5e7eb;font-size:14px;font-weight:500">'+(p.name||'Unnamed Project')+'</span>'
+      +'<span style="color:#9ca3af;font-size:13px">'+secsToHM(hrs)+'</span>'
+      +'</div>'
+      +'<div style="background:#1e2230;border-radius:4px;height:6px;overflow:hidden">'
+      +'<div style="width:'+pct+'%;height:100%;background:linear-gradient(90deg,#4f8ef7,#a78bfa);border-radius:4px;transition:width .4s"></div>'
+      +'</div>'
+      +'</div>';
+  }).join('');
+  const overlay=document.createElement('div');
+  overlay.id='proj-modal-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9000;display:flex;align-items:center;justify-content:center';
+  overlay.onclick=function(e){if(e.target===overlay)closeProjectsModal();};
+  overlay.innerHTML='<div style="background:#0f1117;border:1px solid #1e2230;border-radius:12px;width:540px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)">'
+    +'<div style="padding:20px 24px;border-bottom:1px solid #1e2230;display:flex;justify-content:space-between;align-items:center">'
+    +'<div>'
+    +'<div style="font-size:16px;font-weight:700;color:#f0f2ff">Active Projects</div>'
+    +'<div style="font-size:12px;color:#6b7280;margin-top:2px">'+sorted.length+' projects · sorted by tracked time</div>'
+    +'</div>'
+    +'<button onclick="closeProjectsModal()" style="background:none;border:1px solid #374151;color:#9ca3af;cursor:pointer;font-size:18px;line-height:1;padding:4px 10px;border-radius:6px">✕</button>'
+    +'</div>'
+    +'<div style="padding:20px 24px;overflow-y:auto;flex:1">'+(rows||'<div style="color:#6b7280;text-align:center;padding:32px">No projects found</div>')+'</div>'
+    +'</div>';
+  document.body.appendChild(overlay);
+}
+
+function closeProjectsModal(){
+  const el=document.getElementById('proj-modal-overlay');
+  if(el)el.remove();
+}
+</script>
+</body>
+</html>

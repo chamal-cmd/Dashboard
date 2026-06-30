@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign In — Operations Hub</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{background:#0a0d12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .wrap{width:100%;max-width:400px}
+
+    /* Logo */
+    .logo{text-align:center;margin-bottom:32px}
+    .logo-icon{width:56px;height:56px;background:linear-gradient(135deg,#4f8ef7,#a78bfa);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;margin:0 auto 14px}
+    .logo-title{font-size:22px;font-weight:700;color:#f0f2ff}
+    .logo-sub{font-size:12px;color:#4b5563;margin-top:4px}
+
+    /* Card */
+    .card{background:#0f1117;border:1px solid #1e2230;border-radius:16px;padding:36px}
+    .card-title{font-size:18px;font-weight:700;color:#f0f2ff;margin-bottom:6px}
+    .card-sub{font-size:13px;color:#6b7280;margin-bottom:24px}
+
+    /* Google button */
+    .btn-google{width:100%;background:#fff;color:#1a1a1a;border:none;border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s;text-decoration:none}
+    .btn-google:hover{background:#f0f0f0}
+    .btn-google svg{width:18px;height:18px;flex-shrink:0}
+
+    /* Divider */
+    .divider{display:flex;align-items:center;gap:12px;margin:20px 0}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:#1e2230}
+    .divider span{font-size:12px;color:#374151;white-space:nowrap}
+
+    /* Form */
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:11px;color:#9ca3af;margin-bottom:6px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+    .field input{width:100%;background:#161b27;border:1px solid #1e2230;color:#f0f2ff;padding:11px 14px;border-radius:8px;font-size:14px;outline:none;transition:border-color .15s}
+    .field input:focus{border-color:#4f8ef7}
+    .field input::placeholder{color:#374151}
+
+    /* Buttons */
+    .btn-primary{width:100%;background:#4f8ef7;color:#fff;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;margin-top:4px}
+    .btn-primary:hover{background:#3d7de6}
+    .btn-primary:disabled{background:#1e2230;color:#374151;cursor:not-allowed}
+
+    /* Alert */
+    .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+    .alert.show{display:block}
+    .alert-error{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#ef4444}
+    .alert-info{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:#fbbf24}
+
+    /* Setup badge */
+    .setup-badge{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:#fbbf24;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+
+    .footer{text-align:center;margin-top:20px;font-size:11px;color:#374151}
+    .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">GP</div>
+    <div class="logo-title">Operations Hub</div>
+    <div class="logo-sub">GP Bookkeeper Pty Ltd</div>
+  </div>
+
+  <div class="card">
+    <div class="alert alert-error" id="errMsg"></div>
+
+    <!-- ── SETUP MODE ─────────────────────────────── -->
+    <div id="setupSection" style="display:none">
+      <div class="setup-badge">🔧 First-time setup</div>
+      <div class="card-title">Create Admin Account</div>
+      <div class="card-sub">Set up the primary administrator account for your organisation.</div>
+      <form id="setupForm">
+        <div class="field"><label>Full Name</label><input id="sName" type="text" placeholder="Your name" required autocomplete="name"></div>
+        <div class="field"><label>Email Address</label><input id="sEmail" type="email" placeholder="you@gpbookkeeper.com.au" required autocomplete="email"></div>
+        <div class="field"><label>Password</label><input id="sPass" type="password" placeholder="At least 8 characters" required autocomplete="new-password"></div>
+        <button type="submit" class="btn-primary" id="setupBtn">Create Admin Account →</button>
+      </form>
+    </div>
+
+    <!-- ── LOGIN MODE ─────────────────────────────── -->
+    <div id="loginSection" style="display:none">
+      <div class="card-title">Welcome back</div>
+      <div class="card-sub">Sign in to your Operations Hub account.</div>
+
+      <div id="googleWrap" style="display:none">
+        <a class="btn-google" href="/auth/google">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </a>
+        <div class="divider"><span>or continue with email</span></div>
+      </div>
+
+      <form id="loginForm">
+        <div class="field"><label>Email Address</label><input id="lEmail" type="email" placeholder="you@gpbookkeeper.com.au" required autocomplete="email"></div>
+        <div class="field"><label>Password</label><input id="lPass" type="password" placeholder="Your password" required autocomplete="current-password"></div>
+        <button type="submit" class="btn-primary" id="loginBtn">Sign In →</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="footer">GP Bookkeeper Operations Hub &middot; Confidential</div>
+</div>
+
+<script>
+  // Show error from query string
+  const qErr = new URLSearchParams(location.search).get('error');
+  if (qErr) showErr(
+    qErr === 'no-access'   ? 'This Google account is not authorised. Contact your administrator.' :
+    qErr === 'expired'     ? 'This invite link has expired. Ask your admin for a new one.' :
+    qErr === 'suspended'   ? 'Your account has been suspended. Contact your administrator.' :
+                             'Sign-in failed. Please try again.'
+  );
+
+  // Load config (needsSetup, googleEnabled)
+  fetch('/auth/config').then(r => r.json()).then(cfg => {
+    if (cfg.needsSetup) {
+      document.getElementById('setupSection').style.display = 'block';
+    } else {
+      document.getElementById('loginSection').style.display = 'block';
+      if (cfg.googleEnabled) document.getElementById('googleWrap').style.display = 'block';
+    }
+  }).catch(() => {
+    document.getElementById('loginSection').style.display = 'block';
+  });
+
+  // Setup form
+  document.getElementById('setupForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('setupBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Creating...';
+    const r = await fetch('/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: document.getElementById('sName').value, email: document.getElementById('sEmail').value, password: document.getElementById('sPass').value })
+    });
+    const d = await r.json();
+    if (d.ok) { location.href = d.redirect || '/'; }
+    else { showErr(d.error); btn.disabled = false; btn.textContent = 'Create Admin Account →'; }
+  });
+
+  // Login form
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Signing in...';
+    const r = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('lEmail').value, password: document.getElementById('lPass').value })
+    });
+    const d = await r.json();
+    if (d.ok) { location.href = d.redirect || '/'; }
+    else { showErr(d.error); btn.disabled = false; btn.textContent = 'Sign In →'; }
+  });
+
+  function showErr(msg) {
+    const el = document.getElementById('errMsg');
+    el.textContent = msg;
+    el.classList.add('show');
+  }
+</script>
+</body>
+</html>

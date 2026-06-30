@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aircall — Calls &amp; Messages</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="app.css">
+<style>
+@media print {
+  header, #api-banner, #loading-overlay, #detail-panel, #settings-modal,
+  button, select, input, .dr-btn, #f-search { display: none !important; }
+  body { background: white !important; }
+  #main-content { display: block !important; }
+  .bg-white { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+  @page { margin: 1cm; size: A4 landscape; }
+}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen" style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+
+<!-- ═══ HEADER ═══ -->
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <div class="max-w-screen-xl mx-auto px-6 h-16 flex items-center gap-4">
+    <div class="flex items-center gap-2.5 mr-4">
+      <a href="/" class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 hover:bg-slate-200 transition-colors" title="Back to Hub">
+        <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      </a>
+      <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+        </svg>
+      </div>
+      <span class="text-lg font-semibold text-slate-900">Aircall</span>
+      <span id="source-badge" class="text-xs font-semibold px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded-md">loading…</span>
+    </div>
+
+    <div class="flex flex-col gap-0.5">
+      <div class="flex items-center bg-slate-100 rounded-lg p-1 gap-0.5">
+        <button id="dr-today"      onclick="setRange('today')"      class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Today</button>
+        <button id="dr-week"       onclick="setRange('week')"       class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all bg-white shadow-sm text-slate-700">This Week</button>
+        <button id="dr-month"      onclick="setRange('month')"      class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">This Month</button>
+        <button id="dr-last-month" onclick="setRange('last-month')" class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">Last Month</button>
+        <button id="dr-3-months"   onclick="setRange('3-months')"   class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">3 Months</button>
+        <button id="dr-6-months"   onclick="setRange('6-months')"   class="dr-btn px-3 py-1.5 rounded-md text-sm font-medium text-slate-500 hover:text-slate-700 transition-all">6 Months</button>
+      </div>
+      <p id="dr-label" class="text-xs text-slate-400 pl-1"></p>
+      <p id="fetch-stats" class="hidden text-[10px] text-slate-500 pl-1 mt-0.5"></p>
+    </div>
+
+    <div class="flex items-center gap-2 ml-auto">
+      <button onclick="doRefreshActive()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <svg id="ri" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Refresh
+      </button>
+      <button id="btn-export-csv" onclick="doExportActive()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Export CSV
+      </button>
+      <button id="btn-export-pdf" onclick="doExportPDF()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        Export PDF
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ TAB BAR ═══ -->
+<div class="bg-white border-b border-slate-200 sticky top-16 z-20">
+  <div class="max-w-screen-xl mx-auto px-6 flex items-center">
+    <button id="tab-calls" onclick="switchTab('calls')"
+      class="px-5 py-3 text-sm font-medium border-b-2 border-indigo-600 text-indigo-700 -mb-px transition-colors">
+      📞 Calls
+    </button>
+    <button id="tab-messages" onclick="switchTab('messages')"
+      class="px-5 py-3 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 -mb-px transition-colors">
+      💬 Messages
+    </button>
+    <button onclick="showMsgInfo()" title="How messaging works" class="ml-1 mb-px w-4 h-4 rounded-full bg-amber-100 text-amber-600 text-[10px] font-bold leading-none flex items-center justify-center hover:bg-amber-200 transition-colors flex-shrink-0 self-center">!</button>
+  </div>
+</div>
+
+<!-- ═══ BANNER ═══ -->
+<div id="api-banner" class="hidden max-w-screen-xl mx-auto px-6 pt-4">
+  <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-3">
+    <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    <p id="api-banner-text" class="text-xs text-amber-800 leading-relaxed"></p>
+  </div>
+</div>
+
+<!-- ═══ CALLS VIEW ═══ -->
+<div id="calls-view">
+
+  <!-- CALLS LOADING -->
+  <div id="loading-overlay" class="max-w-screen-xl mx-auto px-6 py-20 flex flex-col items-center justify-center">
+    <svg class="w-8 h-8 text-indigo-500 spin mb-4" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <p class="text-sm text-slate-400">Fetching calls from Aircall…</p>
+  </div>
+
+  <!-- CALLS MAIN -->
+  <div id="main-content" class="hidden max-w-screen-xl mx-auto px-6 py-6">
+
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Volume &amp; Activity</p>
+    <div class="grid grid-cols-4 gap-4 mb-4">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.05s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Calls</p>
+        <p class="text-3xl font-bold text-slate-900" id="kpi-total">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="kpi-total-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.08s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Inbound</p>
+        <p class="text-3xl font-bold text-sky-600" id="kpi-inbound">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="kpi-inbound-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.11s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Outbound</p>
+        <p class="text-3xl font-bold text-violet-600" id="kpi-outbound">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="kpi-outbound-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.14s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Missed / Voicemail</p>
+        <p class="text-3xl font-bold text-red-500" id="kpi-missed">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="kpi-missed-sub"></p>
+      </div>
+    </div>
+
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Quality &amp; Duration</p>
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.17s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Talk Time</p>
+        <p class="text-3xl font-bold text-slate-900" id="kpi-talktime">—</p>
+        <p class="text-xs text-slate-400 mt-1">hrs : min total</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.20s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Avg Duration</p>
+        <p class="text-3xl font-bold text-slate-900" id="kpi-dur">—</p>
+        <p class="text-xs text-slate-400 mt-1">min : sec per call</p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.23s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Success Rate</p>
+        <p class="text-3xl font-bold text-emerald-600" id="kpi-ansrate">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="kpi-ansrate-sub"></p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-4 mb-6">
+      <div class="col-span-5 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-sm font-semibold text-slate-700 mb-4">Duration Distribution</p>
+        <canvas id="ch-dur" height="160"></canvas>
+      </div>
+      <div class="col-span-7 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <p class="text-sm font-semibold text-slate-700">Top Clients / Contacts</p>
+            <p id="no-names-hint" class="hidden text-xs text-amber-600 mt-0.5">⚠ Some contacts have no name saved in Aircall</p>
+          </div>
+        </div>
+        <div id="top-clients" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- Talk Time Distribution + Repeat Callers -->
+    <div class="grid grid-cols-12 gap-4 mb-6">
+      <div class="col-span-4 bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        <p class="text-sm font-semibold text-slate-700 mb-4">Talk Time by Agent</p>
+        <div id="talktime-dist"></div>
+      </div>
+      <div class="col-span-8 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 pt-4 pb-2 flex items-baseline gap-2">
+          <p class="text-sm font-semibold text-slate-700">Repeat Callers</p>
+          <span class="text-xs text-slate-400">— same number 3+ calls this period</span>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200">
+              <th class="px-5 py-2 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Contact / Number</th>
+              <th class="px-4 py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Total</th>
+              <th class="px-4 py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Inbound</th>
+              <th class="px-4 py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Outbound</th>
+              <th class="px-4 py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Avg Dur</th>
+              <th class="px-4 py-2 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Last Call</th>
+            </tr>
+          </thead>
+          <tbody id="repeat-callers-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm mb-4 px-4 py-3 flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-40">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="f-search" type="text" placeholder="Search client, phone, agent, topic…" oninput="applyFilters()"
+          class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      </div>
+      <select id="f-agent" onchange="applyFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Agents</option>
+      </select>
+      <select id="f-dir" onchange="applyFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Directions</option>
+        <option value="inbound">Inbound</option>
+        <option value="outbound">Outbound</option>
+      </select>
+      <select id="f-outcome" onchange="applyFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Outcomes</option>
+        <option value="resolved">Resolved</option>
+        <option value="unresolved">Unresolved</option>
+        <option value="follow-up-required">Follow-up Required</option>
+        <option value="sale-made">Sale Made</option>
+      </select>
+      <select id="f-line" onchange="applyFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Lines</option>
+      </select>
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-slate-500 mr-0.5">Sentiment:</span>
+        <button id="sb-positive" onclick="toggleSent('positive')" class="tag bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer">↑ Positive</button>
+        <button id="sb-neutral"  onclick="toggleSent('neutral')"  class="tag bg-slate-100  text-slate-600  border border-slate-200  hover:bg-slate-200  transition-colors cursor-pointer">— Neutral</button>
+        <button id="sb-negative" onclick="toggleSent('negative')" class="tag bg-red-50    text-red-600    border border-red-200    hover:bg-red-100    transition-colors cursor-pointer">↓ Negative</button>
+      </div>
+      <button onclick="clearFilters()" class="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium">Clear</button>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" style="border-collapse:separate;border-spacing:0">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('timestamp')">Time <span id="si-timestamp" class="text-slate-300">↕</span></th>
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('agent')">Agent <span id="si-agent" class="text-slate-300">↕</span></th>
+              <th class="px-4 py-3 text-left">Client / Contact</th>
+              <th class="px-4 py-3 text-left">Line</th>
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('direction')">Dir <span id="si-direction" class="text-slate-300">↕</span></th>
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('duration')">Duration <span id="si-duration" class="text-slate-300">↕</span></th>
+              <th class="px-4 py-3 text-left">Wait</th>
+              <th class="px-4 py-3 text-left">Phone</th>
+              <th class="px-4 py-3 text-left">Tags</th>
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('sentiment')">Sentiment <span id="si-sentiment" class="text-slate-300">↕</span></th>
+              <th class="sort px-4 py-3 text-left" onclick="sortBy('call_outcome')">Outcome <span id="si-call_outcome" class="text-slate-300">↕</span></th>
+              <th class="px-4 py-3 w-8"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div id="tbl-empty" class="hidden py-14 text-center text-slate-400 text-sm">No calls match the current filters.</div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /calls-view -->
+
+<!-- ═══ MESSAGES VIEW ═══ -->
+<div id="messages-view" class="hidden">
+
+  <!-- MESSAGES LOADING -->
+  <div id="msg-loading" class="hidden max-w-screen-xl mx-auto px-6 py-20 flex flex-col items-center justify-center">
+    <svg class="w-8 h-8 text-indigo-500 spin mb-4" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <p class="text-sm text-slate-400">Fetching messages from Aircall…</p>
+    <p id="msg-progress" class="text-xs text-slate-500 mt-1"></p>
+  </div>
+
+  <!-- MESSAGES NOT AVAILABLE NOTICE -->
+  <div id="msg-unavailable" class="hidden max-w-screen-xl mx-auto px-6 py-16">
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-10 flex flex-col items-center text-center max-w-lg mx-auto">
+      <div class="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+        <svg class="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+      </div>
+      <h3 class="text-base font-semibold text-amber-900 mb-2">SMS / Messaging Not Enabled</h3>
+      <p class="text-sm text-amber-700 leading-relaxed">The Aircall <code class="bg-amber-100 px-1 rounded">/v1/messages</code> endpoint returned <strong>Not Found</strong> for this account. Aircall Messaging is a separate add-on — enable it in your Aircall dashboard under <strong>Settings → Messaging</strong> to use this tab.</p>
+    </div>
+  </div>
+
+  <!-- MESSAGES MAIN -->
+  <div id="messages-content" class="hidden max-w-screen-xl mx-auto px-6 py-6">
+
+    <!-- Data coverage banner -->
+    <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-5">
+      <button onclick="showMsgInfo()" class="w-5 h-5 rounded-full bg-amber-400 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5 hover:bg-amber-500 transition-colors">!</button>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-semibold text-amber-800" id="msg-coverage-title">Messaging analytics captured from today onwards</p>
+        <p class="text-xs text-amber-700 mt-0.5" id="msg-coverage-sub">
+          Aircall's REST API does not expose message history —
+          <a href="https://developer.aircall.io/api-references/#messages" target="_blank" rel="noopener" class="underline font-medium hover:text-amber-900">API docs ↗</a>.
+          For historical analytics, use
+          <a href="https://dashboard.aircall.io/analytics/overview/messages?date=today&date_breakdown=daily&team_filter_option=users_belong_to_team&timezone=Asia%2FColombo" target="_blank" rel="noopener" class="underline font-medium hover:text-amber-900">Aircall's own message dashboard ↗</a>.
+        </p>
+      </div>
+    </div>
+
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">SMS Activity</p>
+    <div class="grid grid-cols-5 gap-4 mb-6">
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.05s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Total Messages</p>
+        <p class="text-3xl font-bold text-slate-900" id="mkpi-total">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="mkpi-total-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.08s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Inbound SMS</p>
+        <p class="text-3xl font-bold text-sky-600" id="mkpi-inbound">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="mkpi-inbound-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.11s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Outbound SMS</p>
+        <p class="text-3xl font-bold text-violet-600" id="mkpi-outbound">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="mkpi-outbound-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.14s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Unique Contacts</p>
+        <p class="text-3xl font-bold text-emerald-600" id="mkpi-contacts">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="mkpi-contacts-sub"></p>
+      </div>
+      <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm fade-up" style="animation-delay:.17s">
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Conversations</p>
+        <p class="text-3xl font-bold text-indigo-600" id="mkpi-threads">—</p>
+        <p class="text-xs text-slate-400 mt-1" id="mkpi-threads-sub"></p>
+      </div>
+    </div>
+
+    <!-- Message Filters -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm mb-4 px-4 py-3 flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-40">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input id="mf-search" type="text" placeholder="Search message, phone, agent…" oninput="applyMsgFilters()"
+          class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300">
+      </div>
+      <select id="mf-agent" onchange="applyMsgFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Agents</option>
+      </select>
+      <select id="mf-dir" onchange="applyMsgFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Directions</option>
+        <option value="inbound">Inbound</option>
+        <option value="outbound">Outbound</option>
+      </select>
+      <select id="mf-line" onchange="applyMsgFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Lines</option>
+      </select>
+      <select id="mf-status" onchange="applyMsgFilters()" class="px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <option value="">All Statuses</option>
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+      </select>
+      <button onclick="clearMsgFilters()" class="ml-auto text-xs text-indigo-600 hover:text-indigo-800 font-medium">Clear</button>
+    </div>
+
+    <!-- Threads table -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm" style="border-collapse:separate;border-spacing:0">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <th class="sort px-4 py-3 text-left" onclick="sortMsgBy('time')">Last Message <span id="msi-time" class="text-indigo-500">↓</span></th>
+              <th class="sort px-4 py-3 text-left" onclick="sortMsgBy('agent')">Agent <span id="msi-agent" class="text-slate-300">↕</span></th>
+              <th class="px-4 py-3 text-left">Contact / Phone</th>
+              <th class="px-4 py-3 text-left">Line</th>
+              <th class="px-4 py-3 text-left">Dir</th>
+              <th class="px-4 py-3 text-left">Last Message Preview</th>
+              <th class="sort px-4 py-3 text-center" onclick="sortMsgBy('count')">Msgs <span id="msi-count" class="text-slate-300">↕</span></th>
+              <th class="px-4 py-3 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody id="msg-tbody"></tbody>
+        </table>
+      </div>
+      <div id="msg-empty" class="hidden py-14 text-center text-slate-400 text-sm">No messages for this period. SMS may not be enabled or no messages in this date range.</div>
+    </div>
+
+  </div><!-- /messages-content -->
+</div><!-- /messages-view -->
+
+<!-- ═══ CALLS DETAIL PANEL ═══ -->
+<aside id="detail-panel" class="hidden fixed top-[104px] right-0 bottom-0 w-96 bg-slate-900 border-l border-slate-700 overflow-y-auto z-20 shadow-2xl">
+  <div id="detail-inner" class="p-5 h-full flex flex-col"></div>
+</aside>
+
+<!-- ═══ MESSAGE THREAD PANEL ═══ -->
+<aside id="msg-panel" class="hidden fixed top-[104px] right-0 bottom-0 w-[440px] bg-white border-l border-slate-200 shadow-2xl z-20 flex flex-col panel-enter">
+  <div id="msg-panel-inner" class="flex flex-col h-full overflow-hidden"></div>
+</aside>
+
+<!-- ═══ CONTACT LOOKUP MODAL ═══ -->
+<div id="lookup-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+  <div class="bg-white rounded-2xl shadow-2xl w-96 max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-white border-b border-slate-200 p-5 flex items-center justify-between">
+      <h2 class="text-lg font-bold text-slate-900">Contact Lookup</h2>
+      <button onclick="closeLookup()" class="text-slate-400 hover:text-slate-600 transition-colors">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5">
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
+        <div class="flex gap-2">
+          <input type="text" id="lookup-phone" placeholder="+61 (0) 3 8594 1468"
+            class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+          <button onclick="performLookup()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors text-sm">Search</button>
+        </div>
+      </div>
+      <div id="lookup-results" class="space-y-2">
+        <p class="text-slate-400 text-sm">Enter a phone number to search</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS MODAL ═══ -->
+<div id="settings-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-40">
+  <div class="bg-white rounded-2xl shadow-2xl w-96 max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-white border-b border-slate-200 p-5 flex items-center justify-between">
+      <h2 class="text-lg font-bold text-slate-900">Settings &amp; Contacts</h2>
+      <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 transition-colors">
+        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="p-5">
+      <div class="mb-6">
+        <h3 class="font-semibold text-slate-900 mb-3">Add Contact</h3>
+        <div class="space-y-3">
+          <input type="text" id="new-phone" placeholder="Phone (e.g., +61298765432)"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+          <input type="text" id="new-name" placeholder="Contact Name"
+            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+          <button onclick="addContact()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition-colors text-sm">Add Contact</button>
+        </div>
+      </div>
+      <div class="border-t border-slate-200 pt-4">
+        <h3 class="font-semibold text-slate-900 mb-3">Saved Contacts</h3>
+        <div id="contacts-list" class="space-y-2">
+          <p class="text-slate-400 text-sm py-4">No saved contacts yet.</p>
+        </div>
+      </div>
+      <div class="border-t border-slate-200 mt-6 pt-4 text-xs text-slate-500">
+        <p class="font-semibold mb-2">💡 How contacts work:</p>
+        <ul class="space-y-1 list-disc list-inside">
+          <li>Contacts are saved locally in your browser</li>
+          <li>Add phone numbers you call frequently</li>
+          <li>They'll appear in the dashboard automatically</li>
+          <li>Use "Contact Lookup" to search Aircall's database</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MESSAGING INFO MODAL ═══ -->
+<div id="msg-info-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)closeMsgInfo()">
+  <div class="bg-white rounded-2xl shadow-2xl w-[540px] max-h-[90vh] overflow-y-auto">
+    <div class="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <span class="text-amber-600 font-bold text-sm">!</span>
+        </div>
+        <h2 class="text-base font-bold text-slate-900">How Aircall Messaging Works Here</h2>
+      </div>
+      <button onclick="closeMsgInfo()" class="text-slate-400 hover:text-slate-600 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="px-6 py-5 space-y-5">
+
+      <!-- Why no history -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <p class="text-sm font-semibold text-amber-800 mb-1">Why can't we pull historical message data?</p>
+        <p class="text-sm text-amber-700 leading-relaxed">Aircall's public REST API has <strong>no GET endpoint for messages</strong>. Unlike calls — which have <code class="bg-amber-100 px-1 rounded text-xs">GET /v1/calls</code> — there is no equivalent for SMS history. The API only supports <em>sending</em> messages outbound.</p>
+        <a href="https://developer.aircall.io/api-references/#messages" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 mt-2.5 text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          Aircall API docs — Messages reference ↗
+        </a>
+      </div>
+
+      <!-- Why Aircall dashboard has it but we don't -->
+      <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+        <p class="text-sm font-semibold text-indigo-800 mb-1">If Aircall's own dashboard shows message analytics, why can't we?</p>
+        <p class="text-sm text-indigo-700 leading-relaxed">Aircall's analytics dashboard is an <strong>internal product</strong> that queries their own private database directly — it is not built on the same public REST API that third parties use. Aircall deliberately keeps this data behind their dashboard and does not expose it via API. This is a common practice: many SaaS platforms offer richer internal reporting than what they expose externally.</p>
+        <a href="https://dashboard.aircall.io/analytics/overview/messages?date=today&date_breakdown=daily&team_filter_option=users_belong_to_team&timezone=Asia%2FColombo"
+           target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 mt-2.5 text-xs font-semibold text-indigo-800 bg-indigo-100 hover:bg-indigo-200 px-3 py-1.5 rounded-lg transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          View Aircall's message analytics dashboard ↗
+        </a>
+      </div>
+
+      <!-- Solution -->
+      <div>
+        <p class="text-sm font-semibold text-slate-800 mb-2">✅ Our solution: Webhook capture</p>
+        <p class="text-sm text-slate-600 leading-relaxed mb-3">Every time a message is sent or received, Aircall pushes the event to this server in real time. We store it locally and build analytics from that. The data grows automatically — no manual work needed.</p>
+        <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+          <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <span>SMS sent/received → <strong>Aircall pushes event</strong> → server catches it → stored in <code class="bg-slate-100 px-1 rounded">aircall-messages.json</code> → analytics built here</span>
+        </div>
+      </div>
+
+      <!-- Setup steps -->
+      <div>
+        <p class="text-sm font-semibold text-slate-800 mb-3">🔧 One-time setup</p>
+        <ol class="space-y-3">
+          <li class="flex gap-3">
+            <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+            <div><p class="text-sm font-medium text-slate-800">Aircall → Integrations &amp; API → Webhook</p><p class="text-xs text-slate-500 mt-0.5">Search "webhook" in the integrations list</p></div>
+          </li>
+          <li class="flex gap-3">
+            <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+            <div>
+              <p class="text-sm font-medium text-slate-800">Set the webhook URL</p>
+              <code class="block bg-slate-900 text-emerald-400 text-xs px-3 py-2 rounded-lg mt-1.5 select-all">http://203.143.26.26:3000/aircall-webhook</code>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+            <div>
+              <p class="text-sm font-medium text-slate-800">Subscribe to these two events</p>
+              <div class="flex gap-2 mt-1.5 flex-wrap">
+                <code class="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded">message.sent</code>
+                <code class="bg-slate-100 text-slate-700 text-xs px-2 py-1 rounded">message.received</code>
+              </div>
+            </div>
+          </li>
+          <li class="flex gap-3">
+            <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">✓</span>
+            <div><p class="text-sm font-medium text-slate-800">Done — already configured!</p><p class="text-xs text-slate-500 mt-0.5">Messages are being captured automatically from today onwards.</p></div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Important note -->
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Coverage limitation</p>
+        <p class="text-sm text-slate-600 leading-relaxed">Analytics only cover messages <strong>from the webhook setup date onwards</strong>. There is no way to recover messages sent before that date through any API method — Aircall does not provide an export endpoint. Use the <a href="https://dashboard.aircall.io/analytics/overview/messages?date=today&date_breakdown=daily&team_filter_option=users_belong_to_team&timezone=Asia%2FColombo" target="_blank" rel="noopener" class="text-indigo-600 underline font-medium">Aircall analytics dashboard ↗</a> for historical data.</p>
+      </div>
+
+    </div>
+    <div class="px-6 pb-5">
+      <button onclick="closeMsgInfo()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
