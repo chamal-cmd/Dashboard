@@ -754,12 +754,7 @@
               <div class="settings-section-title">Asana API Token</div>
               <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px">
                 <div class="settings-row-label">Personal Access Token</div>
-                <div style="display:flex;align-items:center;gap:10px;width:100%">
-                  <div class="token-display" id="tokenDisplay">2/1214471943&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;&#x202F;</div>
-                  <button class="action-btn" onclick="toggleToken(this)" id="tokenRevealBtn">Reveal</button>
-                  <button class="action-btn" onclick="copyToken(event)">Copy</button>
-                </div>
-                <div class="settings-row-hint">Last verified: just now</div>
+                <div class="settings-row-hint">Managed server-side via environment variable. Not exposed to the browser.</div>
               </div>
             </div>
           </div>
@@ -845,8 +840,7 @@
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
-const TOKEN = '2/1214471943606451/1215222992866046:6dfe1a9ae6174b058e95f9d64b539d79';
-const BASE  = 'https://app.asana.com/api/1.0';
+const BASE  = '/asana-proxy';
 
 const WORKSPACES = [
   { gid: '1199377459726222', name: 'GP Bookkeeper' },
@@ -884,7 +878,7 @@ function escHtml(s) {
 // ── API helpers ────────────────────────────────────────────────────────────
 async function api(path) {
   const r = await fetch(`${BASE}${path}`, {
-    headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/json' }
+    headers: { Accept: 'application/json' }
   });
   if (!r.ok) throw new Error(`API ${r.status}: ${path}`);
   return r.json();
@@ -1483,23 +1477,6 @@ function exportCSV() {
 }
 
 // ── PAGE 4: Settings ───────────────────────────────────────────────────────
-let tokenRevealed = false;
-
-function toggleToken(btn) {
-  tokenRevealed = !tokenRevealed;
-  const masked = '2/1214471943' + '•'.repeat(40);
-  document.getElementById('tokenDisplay').textContent = tokenRevealed ? TOKEN : masked;
-  (btn || document.getElementById('tokenRevealBtn')).textContent = tokenRevealed ? 'Hide' : 'Reveal';
-}
-
-function copyToken(e) {
-  navigator.clipboard.writeText(TOKEN).then(() => {
-    const btn = (e && e.target) || document.querySelector('[onclick*="copyToken"]');
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 1500);
-  }).catch(() => {});
-}
 
 function buildWsRadioList() {
   document.getElementById('wsRadioList').innerHTML = WORKSPACES.map(w =>
@@ -1560,11 +1537,6 @@ function toggleSidebar() {
 
 // ── Init ───────────────────────────────────────────────────────────────────
 (function init() {
-  // Mask the token display properly on load
-  const masked = '2/1214471943' + '•'.repeat(40);
-  const el = document.getElementById('tokenDisplay');
-  if (el) el.textContent = masked;
-
   buildWsTabs();
   buildWsDropdown();
   loadAll();

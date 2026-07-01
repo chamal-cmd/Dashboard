@@ -5,7 +5,6 @@ let filtered        = [];
 let dateRange       = 'week';
 let sortCol         = 'timestamp';
 let sortDir         = 'desc';
-let activeSents     = new Set();
 let selectedId      = null;
 let expandedIds     = new Set();
 
@@ -107,10 +106,14 @@ async function loadCalls(range) {
     } else {
       badge.textContent = 'Demo data';
       badge.className   = 'text-xs font-semibold px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded-md';
-      document.getElementById('api-banner-text').textContent = `Aircall not connected — Reason: ${lastReason}`;
+      document.getElementById('api-banner-text').textContent = `Aircall not connected — ${lastReason}`;
       banner.classList.remove('hidden');
     }
-    return allCalls.map(c => ({ ...c, timestamp: new Date(c.timestamp) }));
+    const savedContacts = JSON.parse(localStorage.getItem('aircall_contacts') || '{}');
+    return allCalls.map(c => {
+      const saved = savedContacts[c.phone];
+      return { ...c, timestamp: new Date(c.timestamp), contact_name: c.contact_name || saved || null };
+    });
   } catch (err) {
     badge.textContent = 'Offline';
     badge.className   = 'text-xs font-semibold px-1.5 py-0.5 bg-red-50 text-red-600 rounded-md';
@@ -203,21 +206,12 @@ function switchTab(tab) {
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
-function toggleSent(s) {
-  const btn = document.getElementById('sb-'+s);
-  if (activeSents.has(s)) { activeSents.delete(s); btn.style.outline=''; }
-  else { activeSents.add(s); btn.style.outline='2px solid currentColor'; btn.style.outlineOffset='1px'; }
-  applyFilters();
-}
-
 function clearFilters() {
   document.getElementById('f-search').value  = '';
   document.getElementById('f-agent').value   = '';
   document.getElementById('f-dir').value     = '';
   document.getElementById('f-outcome').value = '';
   document.getElementById('f-line').value    = '';
-  activeSents.clear();
-  ['positive','neutral','negative'].forEach(s => { document.getElementById('sb-'+s).style.outline=''; });
   applyFilters();
 }
 
@@ -230,10 +224,11 @@ function applyFilters() {
 
   filtered = ALL_CALLS.filter(c => {
     if (ag && c.agent !== ag) return false;
-    if (dr && c.direction !== dr) return false;
+    if (dr === 'outbound-answered')   { if (c.direction !== 'outbound' || c.missed || c.voicemail) return false; }
+    else if (dr === 'outbound-unanswered') { if (c.direction !== 'outbound' || (!c.missed && !c.voicemail)) return false; }
+    else if (dr && c.direction !== dr) return false;
     if (oc && c.call_outcome !== oc) return false;
     if (ln && c.line_name !== ln) return false;
-    if (activeSents.size && !activeSents.has(c.sentiment)) return false;
     if (q) {
       const hay = [c.phone, c.agent, c.contact_name||'', c.line_name||'', ...(c.key_topics||[]), ...(c.tags||[])].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -281,33 +276,35 @@ function fmtDur(s) { return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}
 function renderKPIs() {
   const n        = filtered.length;
   const inb      = filtered.filter(c => c.direction === 'inbound').length;
-  const out      = filtered.filter(c => c.direction === 'outbound').length;
-  const missed   = filtered.filter(c => c.missed).length;
-  const vm       = filtered.filter(c => c.voicemail).length;
+  const outAll   = filtered.filter(c => c.direction === 'outbound');
+  const outAns   = outAll.filter(c => !c.missed && !c.voicemail).length;
+  const outUnans = outAll.filter(c => c.missed || c.voicemail).length;
   const totalSec = filtered.reduce((s,c) => s+c.duration, 0);
   const avgSec   = n ? Math.round(totalSec / n) : 0;
   const missedOrVm  = filtered.filter(c => c.missed || c.voicemail).length;
   const successRate = n ? Math.round(((n - missedOrVm) / n) * 100) : 0;
 
-  countUp(document.getElementById('kpi-total'),    n);
-  countUp(document.getElementById('kpi-inbound'),  inb);
-  countUp(document.getElementById('kpi-outbound'), out);
-  countUp(document.getElementById('kpi-missed'),   missedOrVm);
-  countUp(document.getElementById('kpi-ansrate'),  successRate, '%');
+  countUp(document.getElementById('kpi-total'),               n);
+  countUp(document.getElementById('kpi-inbound'),             inb);
+  countUp(document.getElementById('kpi-outbound'),            outAns);
+  countUp(document.getElementById('kpi-outbound-unanswered'), outUnans);
+  countUp(document.getElementById('kpi-missed'),              missedOrVm);
+  countUp(document.getElementById('kpi-ansrate'),             successRate, '%');
 
   const th = Math.floor(totalSec / 3600);
   const tm = Math.floor((totalSec % 3600) / 60);
   document.getElementById('kpi-talktime').textContent = `${th}h ${tm}m`;
   document.getElementById('kpi-dur').textContent = fmtDur(avgSec);
 
-  const outAnswered   = filtered.filter(c => c.direction === 'outbound' && c.duration > 0).length;
-  const outUnanswered = out - outAnswered;
+  const missed = filtered.filter(c => c.missed).length;
+  const vm     = filtered.filter(c => c.voicemail).length;
 
-  document.getElementById('kpi-total-sub').textContent    = '';
-  document.getElementById('kpi-inbound-sub').textContent  = '';
-  document.getElementById('kpi-outbound-sub').textContent = `${outAnswered} answered · ${outUnanswered} unanswered`;
-  document.getElementById('kpi-missed-sub').textContent   = `${missed} missed · ${vm} voicemail`;
-  document.getElementById('kpi-ansrate-sub').textContent  = `${n - missedOrVm} answered of ${n} total`;
+  document.getElementById('kpi-total-sub').textContent               = `${inb} in · ${outAll.length} out`;
+  document.getElementById('kpi-inbound-sub').textContent             = n ? `${Math.round(inb/n*100)}% of total` : '—';
+  document.getElementById('kpi-outbound-sub').textContent            = outAll.length ? `${Math.round(outAns/outAll.length*100)}% of outbound` : '—';
+  document.getElementById('kpi-outbound-unanswered-sub').textContent = `of ${outAll.length} total outbound`;
+  document.getElementById('kpi-missed-sub').textContent              = `${missed} missed · ${vm} voicemail`;
+  document.getElementById('kpi-ansrate-sub').textContent             = `${n - missedOrVm} answered of ${n} total`;
 }
 
 // ─── Charts ───────────────────────────────────────────────────────────────────
@@ -399,7 +396,7 @@ function renderTable() {
       <td class="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">${fmt.time(c.timestamp)}</td>
       <td class="px-4 py-3">
         <div class="font-medium text-slate-800 text-sm">${c.agent}</div>
-        ${c.analyzed?'<span class="text-xs text-indigo-500 font-medium">✦ Analyzed</span>':'<span class="text-xs text-slate-400">Not analyzed</span>'}
+        ${c.recording?'<span class="text-xs text-indigo-400">● Recording</span>':''}
       </td>
       <td class="px-4 py-3">
         ${c.contact_name?`<div class="text-sm font-medium text-slate-800">${c.contact_name}</div>${c.contact_company?`<div class="text-xs text-slate-500">${c.contact_company}</div>`:''}`:`<span class="text-xs text-slate-400">—</span>`}
@@ -683,25 +680,31 @@ function doExport() {
 function doExportPDF() {
   const label = document.getElementById('dr-label').textContent;
   const today = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
-  const total=filtered.length, inbound=filtered.filter(c=>c.direction==='inbound').length, outbound=filtered.filter(c=>c.direction==='outbound').length;
+  const total=filtered.length, inbound=filtered.filter(c=>c.direction==='inbound').length;
+  const outAll=filtered.filter(c=>c.direction==='outbound');
+  const outAnswered=outAll.filter(c=>!c.missed&&!c.voicemail).length, outUnanswered=outAll.length-outAnswered;
   const missed=filtered.filter(c=>c.missed).length, answered=total-missed, ansRate=total?Math.round(answered/total*100):0;
   const totalDur=filtered.reduce((s,c)=>s+c.duration,0), avgDur=total?Math.round(totalDur/total):0;
   const followUps=filtered.filter(c=>c.follow_up_required).length;
-  const agMap={}; filtered.forEach(c=>{ if(!agMap[c.agent]) agMap[c.agent]={name:c.agent,total:0,inbound:0,outbound:0,missed:0,dur:0,clients:new Set()}; const a=agMap[c.agent]; a.total++; if(c.direction==='inbound')a.inbound++; if(c.direction==='outbound')a.outbound++; if(c.missed)a.missed++; a.dur+=c.duration; if(c.contact_name)a.clients.add(c.contact_name); else if(c.phone)a.clients.add(c.phone); });
+  const agMap={}; filtered.forEach(c=>{ if(!agMap[c.agent]) agMap[c.agent]={name:c.agent,total:0,inbound:0,outAns:0,outUnans:0,missed:0,dur:0,clients:new Set()}; const a=agMap[c.agent]; a.total++; if(c.direction==='inbound')a.inbound++; if(c.direction==='outbound'&&!c.missed&&!c.voicemail)a.outAns++; if(c.direction==='outbound'&&(c.missed||c.voicemail))a.outUnans++; if(c.missed)a.missed++; a.dur+=c.duration; if(c.contact_name)a.clients.add(c.contact_name); else if(c.phone)a.clients.add(c.phone); });
   const agents=Object.values(agMap).sort((a,b)=>b.total-a.total);
   const clMap={}; filtered.forEach(c=>{ const key=c.contact_name||c.phone; if(!clMap[key])clMap[key]={name:c.contact_name||c.phone,company:c.contact_company||'',count:0,dur:0,agents:{}}; clMap[key].count++; clMap[key].dur+=c.duration; clMap[key].agents[c.agent]=(clMap[key].agents[c.agent]||0)+1; });
   const clients=Object.values(clMap).map(cl=>{ const top=Object.entries(cl.agents).sort((a,b)=>b[1]-a[1])[0]; return {...cl,primaryAgent:top?.[0]||'—',primaryCount:top?.[1]||0}; }).sort((a,b)=>b.count-a.count).slice(0,20);
   const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><title>Call Report — ${label}</title><style>@page{size:A4;margin:1.2cm}*{box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1e293b;margin:0;padding:0}.header{border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:20px}.header h1{font-size:24px;margin:0 0 4px;color:#0f172a}.header .sub{color:#64748b;font-size:13px}h2{color:#4f46e5;font-size:15px;margin:24px 0 10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px}.kpi .label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600}.kpi .value{font-size:22px;font-weight:700;color:#0f172a;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th{background:#4f46e5;color:white;text-align:left;padding:8px;font-weight:600;font-size:10px}td{padding:7px 8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even)td{background:#f8fafc}.name{font-weight:600}.footer{margin-top:30px;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px;text-align:center}.print-btn{position:fixed;top:16px;right:16px;padding:10px 20px;background:#4f46e5;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer}@media print{.print-btn{display:none}}</style></head><body>
+  win.document.write(`<!DOCTYPE html><html><head><title>Call Report — ${label}</title><style>@page{size:A4;margin:1.2cm}*{box-sizing:border-box}body{font-family:-apple-system,'Segoe UI',sans-serif;color:#1e293b;margin:0;padding:0}.header{border-bottom:3px solid #4f46e5;padding-bottom:12px;margin-bottom:20px}.header h1{font-size:24px;margin:0 0 4px;color:#0f172a}.header .sub{color:#64748b;font-size:13px}h2{color:#4f46e5;font-size:15px;margin:24px 0 10px;border-bottom:1px solid #e2e8f0;padding-bottom:6px}.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;page-break-inside:avoid}.kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px}.kpi .label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600}.kpi .value{font-size:22px;font-weight:700;color:#0f172a;margin-top:4px}table{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}th{background:#4f46e5;color:white;text-align:left;padding:8px;font-weight:600;font-size:10px}td{padding:7px 8px;border-bottom:1px solid #e2e8f0}tr:nth-child(even)td{background:#f8fafc}.name{font-weight:600}.footer{margin-top:30px;padding-top:12px;border-top:1px solid #e2e8f0;color:#94a3b8;font-size:10px;text-align:center}.print-btn{position:fixed;top:16px;right:16px;padding:10px 20px;background:#4f46e5;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer}@media print{.print-btn{display:none}}</style></head><body>
   <button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
   <div class="header"><h1>📞 Call Activity Report</h1><div class="sub">Date range: <strong>${label}</strong></div><div style="color:#94a3b8;font-size:11px;margin-top:4px">Generated: ${today} · ${total} calls</div></div>
   <h2>Summary</h2><div class="kpi-grid">
     <div class="kpi"><div class="label">Total Calls</div><div class="value">${total}</div></div>
     <div class="kpi"><div class="label">Answer Rate</div><div class="value">${ansRate}%</div></div>
+    <div class="kpi"><div class="label">Outbound Answered</div><div class="value">${outAnswered}</div></div>
+    <div class="kpi"><div class="label">Outbound Unanswered</div><div class="value">${outUnanswered}</div></div>
+    <div class="kpi"><div class="label">Inbound</div><div class="value">${inbound}</div></div>
     <div class="kpi"><div class="label">Talk Time</div><div class="value">${Math.floor(totalDur/60)}m</div></div>
     <div class="kpi"><div class="label">Avg Duration</div><div class="value">${Math.floor(avgDur/60)}:${String(avgDur%60).padStart(2,'0')}</div></div>
+    <div class="kpi"><div class="label">Missed / Voicemail</div><div class="value">${missed}</div></div>
   </div>
-  <h2>Bookkeeper Performance</h2><table><thead><tr><th>Bookkeeper</th><th>Total</th><th>In</th><th>Out</th><th>Missed</th><th>Ans%</th><th>Talk</th><th>Clients</th></tr></thead><tbody>${agents.map(a=>`<tr><td class="name">${a.name}</td><td>${a.total}</td><td>${a.inbound}</td><td>${a.outbound}</td><td>${a.missed}</td><td>${a.total?Math.round((a.total-a.missed)/a.total*100):0}%</td><td>${Math.floor(a.dur/60)}m</td><td>${a.clients.size}</td></tr>`).join('')}</tbody></table>
+  <h2>Bookkeeper Performance</h2><table><thead><tr><th>Bookkeeper</th><th>Total</th><th>In</th><th>Out Ans</th><th>Out Unans</th><th>Missed</th><th>Ans%</th><th>Talk</th><th>Clients</th></tr></thead><tbody>${agents.map(a=>`<tr><td class="name">${a.name}</td><td>${a.total}</td><td>${a.inbound}</td><td>${a.outAns}</td><td>${a.outUnans}</td><td>${a.missed}</td><td>${a.total?Math.round((a.total-a.missed)/a.total*100):0}%</td><td>${Math.floor(a.dur/60)}m</td><td>${a.clients.size}</td></tr>`).join('')}</tbody></table>
   <h2>Top Clients</h2><table><thead><tr><th>#</th><th>Client</th><th>Calls</th><th>Total</th><th>Avg</th><th>Primary Bookkeeper</th></tr></thead><tbody>${clients.map((cl,i)=>`<tr><td>${i+1}</td><td><div class="name">${cl.name}</div>${cl.company?`<div style="font-size:10px;color:#64748b">${cl.company}</div>`:''}</td><td>${cl.count}</td><td>${Math.floor(cl.dur/60)}m</td><td>${Math.floor((cl.dur/cl.count)/60)}:${String(Math.round((cl.dur/cl.count)%60)).padStart(2,'0')}</td><td>${cl.primaryAgent} (${cl.primaryCount})</td></tr>`).join('')}</tbody></table>
   <div style="page-break-before:always"></div><h2>Detailed Call Log</h2><table><thead><tr><th>Date/Time</th><th>Bookkeeper</th><th>Client</th><th>Phone</th><th>Dir</th><th>Duration</th><th>Status</th></tr></thead><tbody>${filtered.slice(0,200).map(c=>{ const d=c.timestamp instanceof Date?c.timestamp:new Date(c.timestamp); return `<tr><td>${d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})} ${d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</td><td>${c.agent}</td><td><div class="name">${c.contact_name||'—'}</div></td><td style="font-family:monospace;font-size:10px">${c.phone}</td><td>${c.direction.slice(0,3)}</td><td>${Math.floor(c.duration/60)}:${String(c.duration%60).padStart(2,'0')}</td><td>${c.missed?'Missed':c.status}</td></tr>`; }).join('')}</tbody></table>
   <div class="footer">Generated by Aircall Dashboard · ${new Date().toLocaleString('en-GB')}</div>

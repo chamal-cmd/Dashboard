@@ -1,5 +1,5 @@
 'use strict';
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const express        = require('express');
 const fetch          = require('node-fetch');
@@ -379,6 +379,22 @@ app.use('/hiver-proxy', async (req, res) => {
     res.json(await upstream.json());
   } catch (e) {
     console.error('[Hiver proxy error]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Asana proxy ───────────────────────────────────────────────────────────────
+const ASANA_ACCESS_TOKEN = process.env.ASANA_ACCESS_TOKEN;
+const asanaLimit = makeLimiter(4);
+app.use('/asana-proxy', async (req, res) => {
+  try {
+    const url = `https://app.asana.com/api/1.0${req.url}`;
+    const upstream = await asanaLimit(() => fetchWithRetry(url, {
+      headers: { 'Authorization': `Bearer ${ASANA_ACCESS_TOKEN}`, 'Accept': 'application/json' }
+    }));
+    res.status(upstream.status).json(await upstream.json());
+  } catch (e) {
+    console.error('[Asana proxy error]', e.message);
     res.status(500).json({ error: e.message });
   }
 });
