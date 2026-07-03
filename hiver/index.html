@@ -264,6 +264,28 @@
     /* ── Tag CSV export ── */
     .tbl-toolbar-right{display:flex;align-items:center;gap:10px}
 
+    /* ── Pod cards ── */
+    .pod-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-bottom:22px}
+    .pod-card{background:#161b27;border:1px solid #1e2230;border-radius:13px;padding:20px;transition:border-color .2s}
+    .pod-card:hover{border-color:#2d3348}
+    .pod-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:16px}
+    .pod-name{font-size:15px;font-weight:800;color:#f0f2ff;margin-bottom:2px}
+    .pod-email{font-size:11px;color:#4b5563}
+    .pod-health{font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid;white-space:nowrap;display:flex;align-items:center;gap:5px;flex-shrink:0}
+    .pod-kpis{display:grid;grid-template-columns:repeat(4,1fr);background:#111827;border-radius:9px;border:1px solid #1e2230;overflow:hidden;margin-bottom:16px}
+    .pod-kpi{padding:12px 8px;text-align:center;border-right:1px solid #1e2230}
+    .pod-kpi:last-child{border-right:none}
+    .pod-kpi-val{font-size:22px;font-weight:900;line-height:1}
+    .pod-kpi-lbl{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;margin-top:3px}
+    .pod-section{margin-top:14px;border-top:1px solid #1e2230;padding-top:12px}
+    .pod-section-title{font-size:9px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+    .pod-agent-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1a1f2e}
+    .pod-agent-row:last-child{border-bottom:none}
+    .pod-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .pod-footer{display:flex;justify-content:space-between;font-size:11px;color:#4b5563;margin-top:14px;border-top:1px solid #1e2230;padding-top:10px}
+    .agg-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px}
+    @media(max-width:1100px){.pod-grid{grid-template-columns:1fr}}
+
     /* ── Responsive ── */
     @media(max-width:1200px){
       .stats{grid-template-columns:repeat(3,1fr)}
@@ -383,82 +405,41 @@
   </header>
 
   <!-- ════════════════════════════════════════
-       PAGE 1 — OVERVIEW
+       PAGE 1 — OVERVIEW (pod-by-pod)
   ════════════════════════════════════════ -->
   <div class="page active" id="page-overview">
-    <!-- 6 Stats -->
-    <div class="stats" id="stats">
-      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
-      <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
+
+    <!-- Aggregate summary strip -->
+    <div class="agg-strip" id="aggStrip">
       <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
       <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
       <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
       <div class="sc"><div class="sk" style="height:28px;width:80px"></div></div>
     </div>
 
-    <!-- Inbox overview cards -->
+    <!-- Pod-by-pod cards -->
+    <div class="pod-grid" id="podGrid">
+      <div class="pod-card"><div class="sk"></div><div class="sk" style="margin-top:8px"></div></div>
+      <div class="pod-card"><div class="sk"></div><div class="sk" style="margin-top:8px"></div></div>
+    </div>
+
+    <!-- Recent conversations panel -->
     <div class="full panel">
-      <div class="ph"><div class="pt">Inboxes Overview</div><div class="pb" id="inboxCount">—</div></div>
-      <div class="inbox-grid" id="inboxGrid"><div class="sk"></div></div>
-    </div>
-
-    <div class="g13">
-      <!-- Conversations list -->
-      <div class="panel">
-        <div class="ph">
-          <div class="pt" id="convTitle">Conversations</div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <select id="statusFilter" onchange="renderConversations()" style="background:#1a1f2e;border:1px solid #1e2230;color:#e5e7eb;padding:4px 8px;border-radius:6px;font-size:11px;outline:none">
-              <option value="all">All Status</option>
-              <option value="open">Open</option>
-              <option value="pending">Pending</option>
-              <option value="closed">Closed</option>
-            </select>
-            <div class="pb" id="convBadge">—</div>
-          </div>
-        </div>
-        <div class="conv-list" id="convList"><div class="sk"></div><div class="sk"></div></div>
-      </div>
-
-      <!-- Status breakdown + Assignee workload -->
-      <div style="display:flex;flex-direction:column;gap:18px">
-        <div class="panel">
-          <div class="ph"><div class="pt">Status Breakdown</div></div>
-          <div id="statusBreakdown"><div class="sk"></div></div>
-        </div>
-        <div class="panel">
-          <div class="ph"><div class="pt">Assignee Workload</div><div class="pb" id="assigneeCount">—</div></div>
-          <div class="assignee-list" id="assigneeList"><div class="sk"></div></div>
+      <div class="ph">
+        <div class="pt" id="convTitle">Conversations</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="statusFilter" onchange="renderConversations()" style="background:#1a1f2e;border:1px solid #1e2230;color:#e5e7eb;padding:4px 8px;border-radius:6px;font-size:11px;outline:none">
+            <option value="all">All Status</option>
+            <option value="open">Open</option>
+            <option value="pending">Pending</option>
+            <option value="closed">Closed</option>
+          </select>
+          <div class="pb" id="convBadge">—</div>
         </div>
       </div>
+      <div class="conv-list" id="convList"><div class="sk"></div><div class="sk"></div></div>
     </div>
 
-    <div class="g2">
-      <!-- Tag bars -->
-      <div class="panel">
-        <div class="ph"><div class="pt">Top Tags</div><div class="pb" id="tagCount">—</div></div>
-        <div class="bars" id="tagBars"><div class="sk"></div><div class="sk"></div></div>
-      </div>
-      <!-- Tag cloud -->
-      <div class="panel">
-        <div class="ph"><div class="pt">Tag Cloud</div></div>
-        <div class="tag-cloud" id="tagCloud"><div class="sk"></div></div>
-      </div>
-    </div>
-
-    <!-- Users table -->
-    <div class="full panel">
-      <div class="ph"><div class="pt">Inbox Members</div><div class="pb" id="userCount">—</div></div>
-      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
-        <table class="utbl" id="userTable">
-          <thead><tr>
-            <th>Member</th><th>Email</th>
-            <th>Open</th><th>Pending</th><th>Closed</th><th>Total</th>
-          </tr></thead>
-          <tbody id="userBody"><tr><td colspan="6"><div class="sk"></div></td></tr></tbody>
-        </table>
-      </div>
-    </div>
   </div><!-- /page-overview -->
 
   <!-- ════════════════════════════════════════
@@ -940,7 +921,7 @@ function getFilteredConvs() {
 }
 
 /* ═══════════════════════════════════════════
-   OVERVIEW — renderAll
+   OVERVIEW — pod-by-pod renderAll
 ═══════════════════════════════════════════ */
 function renderConversations() {
   const status = document.getElementById('statusFilter').value;
@@ -949,19 +930,21 @@ function renderConversations() {
 
   document.getElementById('convBadge').textContent = convs.length;
   const inbox = allInboxes.find(i => String(i.id) === String(currentInboxId));
-  document.getElementById('convTitle').textContent = inbox ? `${inbox.display_name} — Conversations` : 'All Conversations';
+  document.getElementById('convTitle').textContent = inbox ? `${inbox.display_name} — Recent Conversations` : 'Recent Conversations';
 
   document.getElementById('convList').innerHTML = convs.slice(0, 50).map(c => {
     const assignee = c.assignee?.assignee_id
-      ? allUsers[c.assignee.assignee_id] || { first_name: 'User', last_name: c.assignee.assignee_id }
+      ? allUsers[c.assignee.assignee_id] || { first_name: 'User', last_name: '' }
       : null;
     const tags = (c.tag_ids || []).map(tid => allTags[tid]).filter(Boolean).slice(0, 3);
+    const podName = allInboxes.find(i => String(i.id) === String(c._inbox_id))?.display_name || '';
     return `
       <div class="conv-item">
         <div class="conv-top">
           <span class="conv-id">#${c.id}</span>
           <span class="status-badge status-${c.status || 'open'}">${c.status || 'open'}</span>
           <span class="conv-assignee">${assignee ? `${assignee.first_name} ${assignee.last_name}` : '— unassigned'}</span>
+          ${currentInboxId === 'all' && podName ? `<span style="font-size:10px;color:#4b5563;margin-left:auto">${podName}</span>` : ''}
         </div>
         <div class="conv-tags">${tags.map(t => `<span class="tag-pill" style="background:${t.color_code}">${t.name}</span>`).join('')}</div>
       </div>`;
@@ -973,129 +956,160 @@ function renderAll() {
   const open       = convs.filter(c => c.status === 'open').length;
   const pending    = convs.filter(c => c.status === 'pending').length;
   const closed     = convs.filter(c => c.status === 'closed').length;
-  const unassigned = convs.filter(c => !c.assignee || !c.assignee.assignee_id).length;
-  const totalTags  = Object.keys(allTags).length;
+  const unassigned = convs.filter(c => !c.assignee?.assignee_id).length;
+  const total      = convs.length;
 
   document.getElementById('hsub').textContent =
-    `GP Bookkeeper · ${allInboxes.length} inboxes · ${allConversations.length} total conversations`;
+    `GP Bookkeeper · ${allInboxes.length} pods · ${allConversations.length} total conversations`;
 
-  // 6 stats
-  document.getElementById('stats').innerHTML = `
-    <div class="sc"><div class="sc-lbl">Open</div><div class="sc-val c-or">${open}</div><div class="sc-sub">need attention</div></div>
-    <div class="sc"><div class="sc-lbl">Pending</div><div class="sc-val c-bl">${pending}</div><div class="sc-sub">awaiting reply</div></div>
-    <div class="sc"><div class="sc-lbl">Closed</div><div class="sc-val c-gr">${closed}</div><div class="sc-sub">resolved</div></div>
-    <div class="sc"><div class="sc-lbl">Unassigned</div><div class="sc-val ${unassigned>0?'c-rd':'c-gr'}">${unassigned}</div><div class="sc-sub">no owner</div></div>
-    <div class="sc"><div class="sc-lbl">Inboxes</div><div class="sc-val c-pu">${allInboxes.length}</div><div class="sc-sub">active shared mailboxes</div></div>
-    <div class="sc"><div class="sc-lbl">Tags</div><div class="sc-val c-yw">${totalTags}</div><div class="sc-sub">across all inboxes</div></div>
-  `;
-
-  // Status breakdown
-  const total = convs.length || 1;
-  document.getElementById('statusBreakdown').innerHTML = `
-    <div class="bars">
-      <div class="br"><div class="bl">Open</div><div class="bt"><div class="bf" style="width:${open/total*100}%;background:#f97316"></div></div><div class="bv">${open}</div></div>
-      <div class="br"><div class="bl">Pending</div><div class="bt"><div class="bf" style="width:${pending/total*100}%;background:#4f8ef7"></div></div><div class="bv">${pending}</div></div>
-      <div class="br"><div class="bl">Closed</div><div class="bt"><div class="bf" style="width:${closed/total*100}%;background:#22c55e"></div></div><div class="bv">${closed}</div></div>
-      <div class="br"><div class="bl">Unassigned</div><div class="bt"><div class="bf" style="width:${unassigned/total*100}%;background:#ef4444"></div></div><div class="bv">${unassigned}</div></div>
+  // ── Aggregate strip ──
+  document.getElementById('aggStrip').innerHTML = `
+    <div class="sc">
+      <div class="sc-lbl">Total Conversations</div>
+      <div class="sc-val c-or">${total}</div>
+      <div class="sc-sub">${allInboxes.length} pods · ${Object.keys(allUsers).length} agents</div>
+    </div>
+    <div class="sc">
+      <div class="sc-lbl">Open</div>
+      <div class="sc-val c-or">${open}</div>
+      <div class="sc-sub">${total ? Math.round(open/total*100) : 0}% of total</div>
+    </div>
+    <div class="sc">
+      <div class="sc-lbl">Closed</div>
+      <div class="sc-val c-gr">${closed}</div>
+      <div class="sc-sub">${total ? Math.round(closed/total*100) : 0}% resolution rate</div>
+    </div>
+    <div class="sc">
+      <div class="sc-lbl">Unassigned</div>
+      <div class="sc-val ${unassigned > 0 ? 'c-rd' : 'c-gr'}">${unassigned}</div>
+      <div class="sc-sub">${total ? Math.round(unassigned/total*100) : 0}% need owner</div>
     </div>
   `;
 
-  // Assignee workload
-  const assigneeMap = {};
-  convs.forEach(c => {
-    const aid = c.assignee?.assignee_id;
-    if (!aid) return;
-    if (!assigneeMap[aid]) assigneeMap[aid] = { open:0, pending:0, closed:0 };
-    assigneeMap[aid][c.status || 'open']++;
-  });
-  const sortedAssignees = Object.entries(assigneeMap)
-    .sort((a, b) => (b[1].open + b[1].pending) - (a[1].open + a[1].pending));
-  document.getElementById('assigneeCount').textContent = sortedAssignees.length;
-  document.getElementById('assigneeList').innerHTML = sortedAssignees.slice(0, 8).map(([aid, stats], i) => {
-    const u = allUsers[aid] || { first_name:'User', last_name:aid };
-    const name = `${u.first_name} ${u.last_name}`;
-    const tot  = stats.open + stats.pending + stats.closed;
-    return `
-      <div class="assignee-row">
-        <div class="av" style="background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(name)}</div>
-        <div class="a-name">${name}</div>
-        <div style="display:flex;gap:10px">
-          <div class="a-stat c-or" title="Open">${stats.open}</div>
-          <div class="a-stat c-bl" title="Pending">${stats.pending}</div>
-          <div class="a-stat c-gr" title="Closed">${stats.closed}</div>
-        </div>
-        <div style="font-size:11px;color:#4b5563">${tot} total</div>
-      </div>`;
-  }).join('') || '<div class="empty">No assignments</div>';
+  // ── Pod cards ──
+  const inboxesToShow = currentInboxId === 'all'
+    ? allInboxes
+    : allInboxes.filter(i => String(i.id) === String(currentInboxId));
 
-  // Tag bars
-  const tagUsage = {};
-  convs.forEach(c => (c.tag_ids || []).forEach(tid => { tagUsage[tid] = (tagUsage[tid]||0)+1; }));
-  const sortedTags = Object.entries(tagUsage).sort((a,b) => b[1]-a[1]);
-  const maxTag = sortedTags[0]?.[1] || 1;
-  document.getElementById('tagCount').textContent = sortedTags.length;
-  document.getElementById('tagBars').innerHTML = sortedTags.slice(0,12).map(([tid,count]) => {
-    const tag = allTags[tid] || { name:`Tag ${tid}`, color_code:'#6b7280' };
-    return `<div class="br">
-      <div class="bl" title="${tag.name}">${tag.name}</div>
-      <div class="bt"><div class="bf" style="width:${count/maxTag*100}%;background:${tag.color_code}"></div></div>
-      <div class="bv">${count}</div>
-    </div>`;
-  }).join('') || '<div class="empty">No tags in use</div>';
-
-  // Tag cloud
-  document.getElementById('tagCloud').innerHTML = Object.values(allTags).slice(0,40).map(t =>
-    `<span class="tag-item" style="background:${t.color_code}20;border:1px solid ${t.color_code}50;color:${t.color_code}">${t.name}</span>`
-  ).join('') || '<div class="empty">No tags</div>';
-
-  // Inbox cards
-  document.getElementById('inboxCount').textContent = allInboxes.length;
-  document.getElementById('inboxGrid').innerHTML = allInboxes.map((inbox,i) => {
+  document.getElementById('podGrid').innerHTML = inboxesToShow.map((inbox, podIdx) => {
     const ic  = allConversations.filter(c => String(c._inbox_id) === String(inbox.id));
     const io  = ic.filter(c => c.status === 'open').length;
     const ip  = ic.filter(c => c.status === 'pending').length;
     const icl = ic.filter(c => c.status === 'closed').length;
-    const isActive = String(currentInboxId) === String(inbox.id);
+    const iu  = ic.filter(c => !c.assignee?.assignee_id).length;
+    const tot = ic.length;
+    const openPct = tot > 0 ? (io / tot * 100) : 0;
+    const resPct  = tot > 0 ? Math.round(icl / tot * 100) : 0;
+
+    const health = openPct < 30
+      ? { label: 'Healthy',  color: '#22c55e' }
+      : openPct < 60
+      ? { label: 'Moderate', color: '#f97316' }
+      : { label: 'Critical', color: '#ef4444' };
+
+    // Per-agent breakdown for this pod
+    const agentMap = {};
+    ic.forEach(c => {
+      const aid = c.assignee?.assignee_id;
+      if (!aid) return;
+      if (!agentMap[aid]) agentMap[aid] = { open: 0, pending: 0, closed: 0 };
+      if (c.status === 'closed')       agentMap[aid].closed++;
+      else if (c.status === 'pending') agentMap[aid].pending++;
+      else                             agentMap[aid].open++;
+    });
+    const agentEntries = Object.entries(agentMap)
+      .sort((a, b) => (b[1].open + b[1].pending) - (a[1].open + a[1].pending));
+    const agentCount = agentEntries.length;
+
+    const agentRows = agentEntries.slice(0, 5).map(([aid, s], i) => {
+      const u    = allUsers[aid] || { first_name: 'User', last_name: '' };
+      const name = `${u.first_name} ${u.last_name}`.trim();
+      const agTot = s.open + s.pending + s.closed;
+      return `
+        <div class="pod-agent-row">
+          <div class="av" style="width:24px;height:24px;font-size:9px;flex-shrink:0;background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(name)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;color:#d1d5db;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+            <div style="font-size:10px;color:#4b5563">${u.email || ''}</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-shrink:0;font-size:11px">
+            <span title="Open"    style="color:#f97316;font-weight:700">${s.open} open</span>
+            <span title="Pending" style="color:#4f8ef7;font-weight:700">${s.pending > 0 ? s.pending + ' pend' : ''}</span>
+            <span title="Closed"  style="color:#22c55e;font-weight:700">${s.closed} closed</span>
+          </div>
+        </div>`;
+    }).join('');
+    const moreAgents = agentCount > 5
+      ? `<div style="font-size:11px;color:#4b5563;padding-top:6px">+${agentCount - 5} more agents</div>` : '';
+
+    // Tags for this pod
+    const tagUsage = {};
+    ic.forEach(c => (c.tag_ids || []).forEach(tid => { tagUsage[tid] = (tagUsage[tid]||0) + 1; }));
+    const topTags = Object.entries(tagUsage).sort((a,b) => b[1]-a[1]).slice(0, 6);
+    const tagPills = topTags.map(([tid, cnt]) => {
+      const t = allTags[tid];
+      if (!t) return '';
+      return `<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:${t.color_code}18;border:1px solid ${t.color_code}45;color:${t.color_code}" title="${cnt} conversations">${t.name} <span style="opacity:.6">${cnt}</span></span>`;
+    }).join('');
+
     return `
-      <div class="inbox-card ${isActive?'active':''}" onclick="document.getElementById('inboxSel').value='${inbox.id}';switchInbox('${inbox.id}')">
-        <div class="ic-name">${inbox.display_name}</div>
-        <div class="ic-email">${inbox.email}</div>
-        <div class="ic-stats">
-          <span class="ic-stat c-or">⬤ ${io} open</span>
-          <span class="ic-stat c-bl" style="margin-left:6px">⬤ ${ip} pending</span>
-          <span class="ic-stat c-gr" style="margin-left:6px">⬤ ${icl} closed</span>
+      <div class="pod-card">
+        <!-- Header -->
+        <div class="pod-card-header">
+          <div style="min-width:0">
+            <div class="pod-name">${inbox.display_name}</div>
+            <div class="pod-email">${inbox.email || '—'}</div>
+          </div>
+          <div class="pod-health" style="color:${health.color};border-color:${health.color}40;background:${health.color}12">
+            <span style="width:7px;height:7px;border-radius:50%;background:${health.color};display:inline-block"></span>
+            ${health.label}
+          </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="pod-kpis">
+          <div class="pod-kpi">
+            <div class="pod-kpi-val" style="color:#f97316">${io}</div>
+            <div class="pod-kpi-lbl">Open</div>
+          </div>
+          <div class="pod-kpi">
+            <div class="pod-kpi-val" style="color:#4f8ef7">${ip}</div>
+            <div class="pod-kpi-lbl">Pending</div>
+          </div>
+          <div class="pod-kpi">
+            <div class="pod-kpi-val" style="color:#22c55e">${icl}</div>
+            <div class="pod-kpi-lbl">Closed</div>
+          </div>
+          <div class="pod-kpi">
+            <div class="pod-kpi-val" style="color:${iu > 0 ? '#ef4444' : '#22c55e'}">${iu}</div>
+            <div class="pod-kpi-lbl">Unassigned</div>
+          </div>
+        </div>
+
+        <!-- Agents -->
+        ${agentCount > 0 ? `
+        <div class="pod-section">
+          <div class="pod-section-title">Agents (${agentCount})</div>
+          ${agentRows}${moreAgents}
+        </div>` : `
+        <div class="pod-section">
+          <div style="font-size:12px;color:#4b5563">No agent assignments yet</div>
+        </div>`}
+
+        <!-- Tags -->
+        ${tagPills ? `
+        <div class="pod-section">
+          <div class="pod-section-title">Top Tags</div>
+          <div class="pod-tags">${tagPills}</div>
+        </div>` : ''}
+
+        <!-- Footer -->
+        <div class="pod-footer">
+          <span>${tot} total conversations</span>
+          <span style="color:${resPct >= 70 ? '#22c55e' : resPct >= 40 ? '#f97316' : '#ef4444'};font-weight:600">${resPct}% resolved</span>
         </div>
       </div>`;
-  }).join('');
-
-  // Users table
-  const userWork = {};
-  allConversations.forEach(c => {
-    const aid = c.assignee?.assignee_id;
-    if (!aid) return;
-    if (!userWork[aid]) userWork[aid] = { open:0, pending:0, closed:0 };
-    userWork[aid][c.status || 'open']++;
-  });
-  const users = Object.values(allUsers);
-  document.getElementById('userCount').textContent = users.length;
-  document.getElementById('userBody').innerHTML = users.sort((a,b) => {
-    const aw = userWork[a.id]||{}, bw = userWork[b.id]||{};
-    return ((bw.open||0)+(bw.pending||0)) - ((aw.open||0)+(aw.pending||0));
-  }).map((u,i) => {
-    const w = userWork[u.id] || { open:0, pending:0, closed:0 };
-    const tot = w.open + w.pending + w.closed;
-    return `<tr>
-      <td><div style="display:flex;align-items:center;gap:8px">
-        <div class="av" style="width:26px;height:26px;font-size:10px;background:linear-gradient(135deg,${COLORS[i%COLORS.length]},${COLORS[(i+3)%COLORS.length]})">${initials(`${u.first_name} ${u.last_name}`)}</div>
-        <span style="color:#d1d5db;font-weight:600">${u.first_name} ${u.last_name}</span>
-      </div></td>
-      <td style="color:#6b7280">${u.email}</td>
-      <td style="color:#f97316;font-weight:700">${w.open}</td>
-      <td style="color:#4f8ef7;font-weight:700">${w.pending}</td>
-      <td style="color:#22c55e;font-weight:700">${w.closed}</td>
-      <td style="color:#d1d5db;font-weight:700">${tot}</td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6" class="empty">No users</td></tr>';
+  }).join('') || '<div style="color:#4b5563;font-size:13px;padding:20px">No pods found</div>';
 
   renderConversations();
 }
@@ -1573,7 +1587,7 @@ async function loadAll() {
     await Promise.all(allInboxes.map(async inbox => {
       try {
         const convs = await hiverAll(`/inboxes/${inbox.id}/conversations?limit=100`, 'results', true);
-        convs.forEach(c => { c._inbox_id = inbox.id; });
+        convs.forEach(c => { c._inbox_id = inbox.id; if (c.status === 'close') c.status = 'closed'; });
         allConversations = allConversations.concat(convs);
       } catch(e) {}
       LoadingProgress.tick();
