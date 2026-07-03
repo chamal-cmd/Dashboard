@@ -10,14 +10,18 @@ export async function GET(
   const { path } = await params;
   const pathStr = path.join("/");
   const search = req.nextUrl.search;
-  const url = `https://api2.hiverhq.com/v1/${pathStr}${search}`;
+  const url = `https://api2.hiverhq.com/${pathStr}${search}`;
 
   try {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${key}` },
     });
-    const data: unknown = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    const text = await res.text();
+    try {
+      return NextResponse.json(JSON.parse(text), { status: res.status });
+    } catch {
+      return NextResponse.json({ error: `Hiver returned non-JSON (${res.status})` }, { status: 502 });
+    }
   } catch {
     return NextResponse.json({ error: "Hiver unreachable" }, { status: 502 });
   }
