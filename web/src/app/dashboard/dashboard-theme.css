@@ -1,0 +1,88 @@
+/* Header/page-shell pieces now live in the shared Sidebar + shellPage
+   (see src/components/shell-theme.css) */
+
+/* Combined Overview */
+.hubOverview {
+  background: #161b27; border: 1px solid #1e2230; border-radius: 14px;
+  padding: 22px 24px; margin-bottom: 28px;
+}
+.hubOverviewHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.hubOverviewTitle { font-size: 14px; font-weight: 700; color: #f0f2ff; }
+.hubOverviewSub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.hubStatRow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 700px) {
+  .hubStatRow { grid-template-columns: repeat(2, 1fr); }
+}
+.hubStat { background: #0f1117; border: 1px solid #1e2230; border-radius: 10px; padding: 14px 16px; }
+.hubStatVal { font-size: 20px; font-weight: 700; color: #f0f2ff; }
+.hubStatLbl { font-size: 11px; color: #6b7280; margin-top: 3px; }
+
+/* Health row — the 4 metrics that admin-configured thresholds actually gate */
+.hubHealthRow { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+.hubHealthPill {
+  display: flex; align-items: center; gap: 7px; background: #0f1117; border: 1px solid #1e2230;
+  border-radius: 20px; padding: 6px 12px 6px 10px;
+}
+.hubHealthDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.hubHealthVal { font-size: 12px; font-weight: 700; color: #f0f2ff; }
+.hubHealthLbl { font-size: 11px; color: #6b7280; }
+
+/* Category cards */
+.hubSectionGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+@media (max-width: 800px) {
+  .hubSectionGrid { grid-template-columns: 1fr; }
+}
+.hubCard { background: #161b27; border: 1px solid #1e2230; border-radius: 14px; padding: 22px; }
+.hubCardDim { opacity: 0.6; }
+.hubCardHead { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.hubCardTitle { font-size: 15px; font-weight: 700; color: #f0f2ff; }
+.hubCardSub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.hubCardBadge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: #fbbf24; background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.2);
+  padding: 3px 8px; border-radius: 4px; white-space: nowrap;
+}
+.hubCardBadgeLive { color: #22c55e; background: rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.2); }
+.hubCardBadgeDown { color: #ef4444; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); }
+
+.hubExpandBtn {
+  margin-top: 16px; background: transparent; border: 1px solid #1e2230; color: #9ca3af;
+  padding: 6px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; transition: border-color 0.15s;
+}
+.hubExpandBtn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+
+/* Mini stat grid — headline numbers at the top of each card */
+.hubMiniStats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 4px; }
+.hubMiniStats2x2 { grid-template-columns: repeat(2, 1fr); }
+.hubMiniStat { background: #0f1117; border: 1px solid #1e2230; border-radius: 8px; padding: 10px 12px; }
+.hubMiniStatVal { font-size: 17px; font-weight: 700; color: #f0f2ff; }
+.hubMiniStatLbl { font-size: 10px; color: #6b7280; margin-top: 2px; line-height: 1.3; }
+
+/* Expandable detail list (recent calls, project breakdown) */
+.hubDetailList { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; max-height: 280px; overflow-y: auto; }
+.hubDetailRow {
+  background: #0f1117; border: 1px solid #1e2230; border-radius: 8px; padding: 9px 12px;
+  font-size: 12px; color: #d1d5db; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.hubDetailRowMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hubDetailRowTitle { color: #f0f2ff; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hubDetailRowSub { font-size: 10px; color: #6b7280; }
+.hubDetailRowRight { font-size: 11px; color: #9ca3af; white-space: nowrap; text-align: right; }
+
+.hubUnavailable {
+  background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.18); border-radius: 8px;
+  padding: 12px 14px; font-size: 12px; color: #ef4444; margin-top: 4px;
+}
+
+/* Date range picker bar inside each card */
+.hubDateBar {
+  display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.hubDateBtn {
+  background: transparent; border: 1px solid #1e2230; color: #6b7280;
+  font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 4px;
+  cursor: pointer; transition: all 0.12s; letter-spacing: 0.3px; line-height: 1.6;
+}
+.hubDateBtn:hover { border-color: #374151; color: #9ca3af; }
+.hubDateBtnActive { border-color: #f97316 !important; color: #f97316 !important; background: rgba(249, 115, 22, 0.08); }
+.hubDateLoading { opacity: 0.5; pointer-events: none; }

@@ -44,8 +44,16 @@ function workloadColor(pct: number) {
   return "#ef4444";
 }
 
-async function hiverFetch(path: string) {
+async function hiverFetch(path: string, attempt = 0): Promise<unknown> {
   const r = await fetch(`/api/hiver${path}`);
+  if (r.status === 429) {
+    if (attempt < 6) {
+      const delay = Math.min(Math.pow(2, attempt) * 500, 16000);
+      await new Promise((res) => setTimeout(res, delay));
+      return hiverFetch(path, attempt + 1);
+    }
+    throw new Error(`Rate limited: ${path}`);
+  }
   if (!r.ok) throw new Error(`Hiver ${r.status}: ${path}`);
   return r.json();
 }
@@ -109,8 +117,8 @@ export default function HiverDashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentInbox, setCurrentInbox] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [preset, setPreset] = useState<DatePreset>("all");
-  const [dateRange, setDateRange] = useState<{ start: Date; stop: Date } | null>(null);
+  const [preset, setPreset] = useState<DatePreset>("30d");
+  const [dateRange, setDateRange] = useState<{ start: Date; stop: Date } | null>(() => computeDateRange("30d"));
   const [loading, setLoading] = useState(true);
   const [pct, setPct] = useState(0);
   const [statusMsg, setStatusMsg] = useState("Fetching inboxes...");
@@ -123,62 +131,56 @@ export default function HiverDashboard() {
     setError(null);
     setPct(0);
     setStatusMsg("Fetching inboxes...");
+    setInboxes([]);
+    setUsers({});
+    setTags({});
+    setConversations([]);
 
     try {
-      const rawInboxes = (await hiverAll("/v1/inboxes?limit=100", null)) as Inbox[];
+      // Step 1: get inbox list via the lightweight proxy (1 subrequest)
+      const inboxRes = await fetch("/api/hiver/v1/inboxes?limit=100");
+      if (!inboxRes.ok) throw new Error(`Inboxes failed: ${inboxRes.status}`);
+      const inboxData = await inboxRes.json() as { data?: { results?: Inbox[] } };
+      const rawInboxes: Inbox[] = inboxData.data?.results ?? [];
+
       if (token !== loadRef.current) return;
       setInboxes(rawInboxes);
       setPct(5);
 
-      const perPhase = rawInboxes.length;
-      const total = 1 + perPhase * 2;
-      let done = 1;
-
-      const newUsers: Record<number, User> = {};
-      const newTags: Record<number, Tag> = {};
-
-      setStatusMsg("Fetching users & tags...");
-      await Promise.all(
-        rawInboxes.map(async (inbox) => {
-          try {
-            const [us, ts] = await Promise.all([
-              hiverAll(`/v1/inboxes/${inbox.id}/users?limit=100`, null),
-              hiverAll(`/v1/inboxes/${inbox.id}/tags?limit=100`, null),
-            ]);
-            inbox._userIds = (us as User[]).map((u) => u.id);
-            (us as User[]).forEach((u) => { newUsers[u.id] = u; });
-            (ts as Tag[]).forEach((t) => { newTags[t.id] = t; });
-          } catch { /* skip */ }
-          done++;
-          setPct(Math.round((done / total) * 100));
-        })
-      );
-
-      if (token !== loadRef.current) return;
-      setUsers(newUsers);
-      setTags(newTags);
-
-      setStatusMsg("Fetching conversations...");
+      // Step 2: load each inbox's users+tags+conversations one at a time (server-side, retried)
+      const caParam = dr ? `?created_after=${Math.floor(dr.start.getTime() / 1000)}` : "";
+      const allUsers: Record<number, User> = {};
+      const allTags: Record<number, Tag> = {};
       const allConvs: Conversation[] = [];
-      await Promise.all(
-        rawInboxes.map(async (inbox) => {
-          try {
-            const cs = (await hiverAll(
-              `/v1/inboxes/${inbox.id}/conversations?limit=100`,
-              dr
-            )) as Conversation[];
-            cs.forEach((c) => {
-              c._inbox_id = inbox.id;
-              if (c.status === "close") c.status = "closed";
-            });
-            allConvs.push(...cs);
-          } catch { /* skip */ }
-          done++;
-          setPct(Math.round((done / total) * 100));
-        })
-      );
+
+      for (let i = 0; i < rawInboxes.length; i++) {
+        if (token !== loadRef.current) return;
+        const inbox = rawInboxes[i];
+        setStatusMsg(`Loading inbox ${i + 1}/${rawInboxes.length}: ${inbox.display_name}`);
+
+        try {
+          const r = await fetch(`/api/inbox-data/${inbox.id}${caParam}`);
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const d = await r.json() as {
+            userIds: number[];
+            users: Record<number, User>;
+            tags: Record<number, Tag>;
+            conversations: Conversation[];
+          };
+          inbox._userIds = d.userIds;
+          Object.assign(allUsers, d.users);
+          Object.assign(allTags, d.tags);
+          allConvs.push(...d.conversations);
+        } catch (err) {
+          console.error(`Inbox ${inbox.id} failed:`, err);
+        }
+
+        setPct(Math.round(((i + 1) / rawInboxes.length) * 95) + 5);
+      }
 
       if (token !== loadRef.current) return;
+      setUsers(allUsers);
+      setTags(allTags);
       setConversations(allConvs);
       setStatusMsg("Done");
       setPct(100);
@@ -190,7 +192,11 @@ export default function HiverDashboard() {
     }
   }, []);
 
-  useEffect(() => { loadAll(null); }, [loadAll]);
+  // Initial load on mount. The synchronous setStates inside loadAll are
+  // no-ops here (they match the initial state values), so the cascading
+  // render the rule guards against can't happen.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { loadAll(computeDateRange("30d")); }, [loadAll]);
 
   function applyPreset(p: DatePreset) {
     const dr = computeDateRange(p);

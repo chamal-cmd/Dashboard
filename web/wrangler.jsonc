@@ -1,0 +1,12 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": ".open-next/worker.js",
+	"name": "gp-bookkeeper-ops-hub",
+	"account_id": "6dc61160e2401e7202a2260f7f8b40ad",
+	"compatibility_date": "2026-07-02",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	}
+}

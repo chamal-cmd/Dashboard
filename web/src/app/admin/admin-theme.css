@@ -1,0 +1,134 @@
+/* Ported from Dashboard/admin/index.html — topbar/page-shell pieces now
+   live in the shared Sidebar + shellPage (see src/components/shell-theme.css) */
+
+.backBtn {
+  background: #161b27; border: 1px solid #1e2230; color: #9ca3af;
+  padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  text-decoration: none; transition: border-color 0.15s;
+}
+.backBtn:hover { border-color: #4f8ef7; color: #f0f2ff; }
+
+.sh { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.shTitle { font-size: 16px; font-weight: 700; color: #f0f2ff; }
+.shSub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+.chips { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.chip { background: #0f1117; border: 1px solid #1e2230; border-radius: 10px; padding: 14px 20px; min-width: 140px; }
+.chipVal { font-size: 22px; font-weight: 700; color: #f0f2ff; }
+.chipLbl { font-size: 11px; color: #6b7280; margin-top: 3px; }
+
+.inviteCard { background: #0f1117; border: 1px solid #1e2230; border-radius: 12px; padding: 24px; margin-bottom: 32px; }
+.inviteRow { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.inviteRow .f { flex: 1; min-width: 180px; }
+.inviteRow .f label {
+  display: block; font-size: 11px; color: #9ca3af; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 6px;
+}
+.inviteRow .f input, .inviteRow .f select {
+  width: 100%; background: #161b27; border: 1px solid #1e2230; color: #f0f2ff;
+  padding: 10px 13px; border-radius: 8px; font-size: 13px; outline: none;
+  transition: border-color 0.15s;
+}
+.inviteRow .f input:focus, .inviteRow .f select:focus { border-color: #4f8ef7; }
+.btnInvite {
+  background: #4f8ef7; color: #fff; border: none; border-radius: 8px;
+  padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background 0.15s; height: 40px;
+}
+.btnInvite:hover { background: #3d7de6; }
+.btnInvite:disabled { background: #1e2230; color: #374151; cursor: not-allowed; }
+.inviteResult { margin-top: 12px; font-size: 12px; padding: 10px 14px; border-radius: 6px; }
+.inviteResultOk { background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2); color: #22c55e; }
+.inviteResultErr { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+.tableWrap { background: #0f1117; border: 1px solid #1e2230; border-radius: 12px; overflow: hidden; margin-bottom: 32px; }
+.tableWrap table { width: 100%; border-collapse: collapse; }
+.tableWrap thead th {
+  background: #0a0d12; padding: 10px 16px; font-size: 11px; font-weight: 700;
+  color: #6b7280; text-align: left; letter-spacing: 0.05em; text-transform: uppercase;
+  border-bottom: 1px solid #1e2230;
+}
+.tableWrap tbody tr { border-bottom: 1px solid #0f1117; }
+.tableWrap tbody tr:hover { background: #11151e; }
+.tableWrap tbody td { padding: 12px 16px; font-size: 13px; color: #d1d5db; vertical-align: middle; }
+
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badgeAdmin { background: rgba(167, 139, 250, 0.12); color: #a78bfa; border: 1px solid rgba(167, 139, 250, 0.2); }
+.badgePodLeader { background: rgba(79, 142, 247, 0.12); color: #4f8ef7; border: 1px solid rgba(79, 142, 247, 0.2); }
+.badgeViewer { background: rgba(107, 114, 128, 0.12); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.2); }
+.badgeActive { background: rgba(34, 197, 94, 0.08); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); }
+.badgePending { background: rgba(251, 191, 36, 0.08); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.2); }
+.badgeSuspended { background: rgba(239, 68, 68, 0.08); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+
+.actRow { display: flex; gap: 6px; flex-wrap: wrap; }
+.actBtn {
+  background: #161b27; border: 1px solid #1e2230; color: #9ca3af;
+  padding: 4px 10px; border-radius: 5px; font-size: 11px; cursor: pointer; transition: all 0.15s;
+}
+.actBtn:hover { border-color: #4f8ef7; color: #4f8ef7; }
+.actBtnDanger:hover { border-color: #ef4444; color: #ef4444; }
+.actBtnWarn:hover { border-color: #fbbf24; color: #fbbf24; }
+
+.roleSel {
+  background: #161b27; border: 1px solid #1e2230; color: #d1d5db;
+  padding: 4px 8px; border-radius: 5px; font-size: 12px; cursor: pointer; outline: none;
+}
+
+.empty { color: #374151; font-size: 13px; padding: 24px; text-align: center; }
+
+.toast {
+  position: fixed; bottom: 24px; right: 24px; background: #0f1117; border: 1px solid #1e2230;
+  border-radius: 8px; padding: 10px 16px; font-size: 13px; color: #d1d5db; z-index: 9999;
+  opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none;
+}
+.toastShow { opacity: 1; transform: translateY(0); }
+.toastOk { border-color: rgba(34, 197, 94, 0.4); color: #22c55e; }
+.toastErr { border-color: rgba(239, 68, 68, 0.4); color: #ef4444; }
+
+/* ── Pods / Trackers / Thresholds (config pages) ──────────────────── */
+.adminBtn { background: #4f8ef7; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.adminBtn:hover { background: #3d7de6; }
+.adminBtn:disabled { opacity: 0.5; cursor: default; }
+.adminBtnSm { padding: 4px 10px; font-size: 11px; }
+.adminBtnDanger { background: transparent; border: 1px solid #ef444430; color: #ef4444; }
+.adminBtnDanger:hover { background: #ef444420; border-color: #ef4444; }
+
+.adminInput { background: #161b27; border: 1px solid #1e2230; color: #f0f2ff; border-radius: 6px; padding: 7px 12px; font-size: 13px; width: 100%; outline: none; }
+.adminInput:focus { border-color: #4f8ef7; }
+.adminInputSm { padding: 5px 10px; font-size: 12px; }
+
+.adminCard { background: #0f1117; border: 1px solid #1e2230; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.adminTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adminTable th { text-align: left; font-size: 10px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 12px; border-bottom: 1px solid #1e2230; }
+.adminTable td { padding: 10px 12px; border-bottom: 1px solid #0f1117; color: #d1d5db; vertical-align: middle; }
+.adminTable tr:last-child td { border-bottom: none; }
+.adminTable tr:hover td { background: #11151e; }
+
+.podCard { background: #0f1117; border: 1px solid #1e2230; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.podCardHead { padding: 14px 18px; background: #0a0d12; border-bottom: 1px solid #1e2230; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.podMemberCount { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.podMemberList { padding: 12px 18px; display: flex; flex-direction: column; gap: 6px; }
+.podMemberRow { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #0a0d12; border-radius: 6px; }
+.podMemberEmail { font-size: 12px; color: #9ca3af; font-family: monospace; }
+.podAddRow { padding: 12px 18px; border-top: 1px solid #1e2230; display: flex; gap: 8px; }
+
+.adminToggle { appearance: none; width: 36px; height: 20px; background: #1e2230; border-radius: 10px; cursor: pointer; position: relative; outline: none; border: none; transition: background 0.2s; }
+.adminToggle:checked { background: #22c55e; }
+.adminToggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform 0.2s; }
+.adminToggle:checked::after { transform: translateX(16px); }
+
+.adminInlineEdit { display: flex; align-items: center; gap: 6px; }
+.adminInlineEdit input { background: transparent; border: 1px solid transparent; color: #f0f2ff; border-radius: 4px; padding: 3px 6px; font-size: 13px; font-weight: 700; width: 160px; }
+.adminInlineEdit input:focus { border-color: #4f8ef7; background: #161b27; outline: none; }
+
+.adminThresholdGrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.adminThresholdCard { background: #0f1117; border: 1px solid #1e2230; border-radius: 10px; padding: 20px; }
+.adminThresholdTitle { font-size: 13px; font-weight: 700; color: #f0f2ff; margin-bottom: 16px; }
+.adminThresholdRow { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.adminThresholdLbl { font-size: 11px; color: #6b7280; width: 150px; flex-shrink: 0; }
+.adminThresholdInput { background: #161b27; border: 1px solid #1e2230; color: #f0f2ff; border-radius: 6px; padding: 5px 10px; font-size: 13px; width: 80px; outline: none; text-align: right; }
+.adminThresholdInput:focus { border-color: #4f8ef7; }
+.adminThresholdSwatch { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.adminThresholdUnit { font-size: 11px; color: #6b7280; }
+.adminSaveBar { position: sticky; bottom: 0; background: #0f1117; border-top: 1px solid #1e2230; padding: 12px 20px; display: flex; align-items: center; gap: 12px; margin-top: 24px; border-radius: 10px; }
+.adminSaved { font-size: 12px; color: #22c55e; }
