@@ -3,6 +3,15 @@ import { getUser } from "@/lib/supabase/get-user";
 
 const BASE = "https://api2.hiverhq.com";
 
+// Tried a pre-emptive pacing gate here (both a 1s and a 300ms gap between
+// every Hiver call) to cut down on 429s. Measured against the full realistic
+// load (all 8 inboxes, 30-day window, exactly what production fetches):
+// unpaced ~130s/37 rate limits, 300ms pacing ~145s/29 rate limits, 1s pacing
+// ~168s. Pacing made every request pay a fixed tax whether or not it was
+// ever going to be rate-limited, which cost more overall than just letting
+// the exponential backoff below absorb the 429s that do happen — so this is
+// back to unpaced. The real fix for "slow" is reducing total request volume
+// (e.g. a server-side cache), not fighting the rate limit harder client-side.
 async function hGet(path: string, key: string, attempt = 0): Promise<unknown> {
   const res = await fetch(`${BASE}/${path}`, {
     headers: { Authorization: `Bearer ${key}` },
@@ -43,8 +52,6 @@ export async function GET(
   if (!key) return NextResponse.json({ error: "not configured" }, { status: 500 });
 
   const { id } = await params;
-  const createdAfter = req.nextUrl.searchParams.get("created_after");
-  const convSuffix = createdAfter ? `&created_after=${createdAfter}` : "";
 
   try {
     // users + tags in parallel (small, 1 page each)
@@ -53,8 +60,13 @@ export async function GET(
       hAll(`v1/inboxes/${id}/tags?limit=100`, key),
     ]);
 
-    // conversations sequentially (may have multiple pages)
-    const convArr = await hAll(`v1/inboxes/${id}/conversations?limit=100${convSuffix}`, key);
+    // conversations sequentially (may have multiple pages). No date-filter
+    // param is sent — Hiver's created_after (and every alias tried: start_date,
+    // from, after, since, date_after, created_since, updated_after, start,
+    // end) is silently ignored by this endpoint, confirmed live on
+    // 2026-07-22, so there is nothing real to scope this fetch by. See
+    // HIVER_DATE_FILTER_NOTE in hiver-shared.ts.
+    const convArr = await hAll(`v1/inboxes/${id}/conversations?limit=100`, key);
 
     const users: Record<number, unknown> = {};
     const tags: Record<number, unknown> = {};

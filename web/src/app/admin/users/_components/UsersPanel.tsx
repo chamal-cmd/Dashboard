@@ -143,14 +143,14 @@ export default function UsersPanel({ selfId }: { selfId: string }) {
                   : "—";
                 return (
                   <tr key={u.id}>
-                    <td><strong style={{ color: "#f0f2ff" }}>{u.name}</strong>{isSelf && <span style={{ fontSize: 10, color: "#4f8ef7" }}> (you)</span>}</td>
-                    <td style={{ color: "#6b7280" }}>{u.email}</td>
+                    <td><strong style={{ color: "var(--text-1)" }}>{u.name}</strong>{isSelf && <span style={{ fontSize: 10, color: "#4f8ef7" }}> (you)</span>}</td>
+                    <td style={{ color: "var(--text-3)" }}>{u.email}</td>
                     <td><span className={`badge ${ROLE_BADGE_CLASS[u.role]}`}>{ROLE_LABELS[u.role]}</span></td>
                     <td><span className={`badge ${STATUS_BADGE_CLASS[u.status]}`}>{u.status}</span></td>
-                    <td style={{ color: "#6b7280", fontSize: 12 }}>{lastLogin}</td>
+                    <td style={{ color: "var(--text-3)", fontSize: 12 }}>{lastLogin}</td>
                     <td>
                       {isSelf ? (
-                        <span style={{ color: "#374151", fontSize: 11 }}>You</span>
+                        <span style={{ color: "var(--text-3)", fontSize: 11 }}>You</span>
                       ) : (
                         <div className="actRow">
                           <select className="roleSel" value={u.role} onChange={(e) => changeRole(u.id, e.target.value as Role)}>

@@ -1,5 +1,7 @@
 import OverviewStats from "./_components/OverviewStats";
 
+export const dynamic = "force-dynamic";
+
 export default function AdminOverviewPage() {
   return (
     <div className="shellPage">

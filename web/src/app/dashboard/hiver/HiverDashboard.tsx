@@ -1,209 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { Fragment, useState } from "react";
+import Link from "next/link";
 import "./hiver-dashboard.css";
-
-interface Inbox {
-  id: number;
-  display_name: string;
-  email: string;
-  _userIds?: number[];
-}
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
-}
-interface Tag {
-  id: number;
-  name: string;
-  color_code: string;
-}
-interface Conversation {
-  id: number;
-  status: string;
-  assignee?: { assignee_id?: number };
-  tag_ids?: number[];
-  _inbox_id: number;
-  created_at?: number;
-}
-
-const COLORS = [
-  "#f97316","#4f8ef7","#22c55e","#a78bfa","#f06292",
-  "#fbbf24","#60a5fa","#34d399","#e879f9","#94a3b8",
-];
-
-function initials(name: string) {
-  return (name || "").split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() || "?";
-}
+import {
+  HIVER_COLORS as COLORS,
+  HIVER_DATE_FILTER_NOTE,
+  initials,
+} from "./hiver-shared";
+import { useHiverData } from "./useHiverData";
 
 function workloadColor(pct: number) {
-  if (pct < 30) return "#22c55e";
-  if (pct < 60) return "#f97316";
-  return "#ef4444";
-}
-
-async function hiverFetch(path: string, attempt = 0): Promise<unknown> {
-  const r = await fetch(`/api/hiver${path}`);
-  if (r.status === 429) {
-    if (attempt < 6) {
-      const delay = Math.min(Math.pow(2, attempt) * 500, 16000);
-      await new Promise((res) => setTimeout(res, delay));
-      return hiverFetch(path, attempt + 1);
-    }
-    throw new Error(`Rate limited: ${path}`);
-  }
-  if (!r.ok) throw new Error(`Hiver ${r.status}: ${path}`);
-  return r.json();
-}
-
-async function hiverAll(
-  path: string,
-  dateRange: { start: Date; stop: Date } | null
-): Promise<unknown[]> {
-  let results: unknown[] = [];
-  let next: string | null = null;
-  let basePath = path;
-  if (dateRange?.start) {
-    const ts = Math.floor(dateRange.start.getTime() / 1000);
-    basePath = path + `&created_after=${ts}`;
-  }
-  do {
-    const url = next ? `${basePath}&next_page=${encodeURIComponent(next)}` : basePath;
-    const d = await hiverFetch(url);
-    results = results.concat((d as { data?: { results?: unknown[] } }).data?.results || []);
-    next = (d as { data?: { pagination?: { next_page?: string } } }).data?.pagination?.next_page || null;
-  } while (next && results.length < 1000);
-  return results;
-}
-
-type DatePreset = "today" | "week" | "month" | "30d" | "90d" | "all";
-
-function computeDateRange(preset: DatePreset): { start: Date; stop: Date } | null {
-  const now = new Date();
-  if (preset === "today") {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0),
-      stop: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999),
-    };
-  }
-  if (preset === "week") {
-    const day = now.getDay();
-    return {
-      start: new Date(now.getFullYear(), now.getMonth(), now.getDate() - day, 0, 0, 0),
-      stop: new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - day), 23, 59, 59, 999),
-    };
-  }
-  if (preset === "month") {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0),
-      stop: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
-    };
-  }
-  if (preset === "30d") {
-    return { start: new Date(Date.now() - 30 * 86400000), stop: now };
-  }
-  if (preset === "90d") {
-    return { start: new Date(Date.now() - 90 * 86400000), stop: now };
-  }
-  return null;
+  if (pct < 30) return "#34d399";
+  if (pct < 60) return "#fb923c";
+  return "#f87171";
 }
 
 export default function HiverDashboard() {
-  const [inboxes, setInboxes] = useState<Inbox[]>([]);
-  const [users, setUsers] = useState<Record<number, User>>({});
-  const [tags, setTags] = useState<Record<number, Tag>>({});
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const {
+    inboxes, users, tags, conversations,
+    podByEmail, allPods,
+    loading, pct, statusMsg, error, failedInboxes,
+    reload,
+  } = useHiverData();
   const [currentInbox, setCurrentInbox] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [preset, setPreset] = useState<DatePreset>("30d");
-  const [dateRange, setDateRange] = useState<{ start: Date; stop: Date } | null>(() => computeDateRange("30d"));
-  const [loading, setLoading] = useState(true);
-  const [pct, setPct] = useState(0);
-  const [statusMsg, setStatusMsg] = useState("Fetching inboxes...");
-  const [error, setError] = useState<string | null>(null);
-  const loadRef = useRef(0);
-
-  const loadAll = useCallback(async (dr: { start: Date; stop: Date } | null) => {
-    const token = ++loadRef.current;
-    setLoading(true);
-    setError(null);
-    setPct(0);
-    setStatusMsg("Fetching inboxes...");
-    setInboxes([]);
-    setUsers({});
-    setTags({});
-    setConversations([]);
-
-    try {
-      // Step 1: get inbox list via the lightweight proxy (1 subrequest)
-      const inboxRes = await fetch("/api/hiver/v1/inboxes?limit=100");
-      if (!inboxRes.ok) throw new Error(`Inboxes failed: ${inboxRes.status}`);
-      const inboxData = await inboxRes.json() as { data?: { results?: Inbox[] } };
-      const rawInboxes: Inbox[] = inboxData.data?.results ?? [];
-
-      if (token !== loadRef.current) return;
-      setInboxes(rawInboxes);
-      setPct(5);
-
-      // Step 2: load each inbox's users+tags+conversations one at a time (server-side, retried)
-      const caParam = dr ? `?created_after=${Math.floor(dr.start.getTime() / 1000)}` : "";
-      const allUsers: Record<number, User> = {};
-      const allTags: Record<number, Tag> = {};
-      const allConvs: Conversation[] = [];
-
-      for (let i = 0; i < rawInboxes.length; i++) {
-        if (token !== loadRef.current) return;
-        const inbox = rawInboxes[i];
-        setStatusMsg(`Loading inbox ${i + 1}/${rawInboxes.length}: ${inbox.display_name}`);
-
-        try {
-          const r = await fetch(`/api/inbox-data/${inbox.id}${caParam}`);
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const d = await r.json() as {
-            userIds: number[];
-            users: Record<number, User>;
-            tags: Record<number, Tag>;
-            conversations: Conversation[];
-          };
-          inbox._userIds = d.userIds;
-          Object.assign(allUsers, d.users);
-          Object.assign(allTags, d.tags);
-          allConvs.push(...d.conversations);
-        } catch (err) {
-          console.error(`Inbox ${inbox.id} failed:`, err);
-        }
-
-        setPct(Math.round(((i + 1) / rawInboxes.length) * 95) + 5);
-      }
-
-      if (token !== loadRef.current) return;
-      setUsers(allUsers);
-      setTags(allTags);
-      setConversations(allConvs);
-      setStatusMsg("Done");
-      setPct(100);
-    } catch (e) {
-      if (token !== loadRef.current) return;
-      setError((e as Error).message);
-    } finally {
-      if (token === loadRef.current) setLoading(false);
-    }
-  }, []);
-
-  // Initial load on mount. The synchronous setStates inside loadAll are
-  // no-ops here (they match the initial state values), so the cascading
-  // render the rule guards against can't happen.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadAll(computeDateRange("30d")); }, [loadAll]);
-
-  function applyPreset(p: DatePreset) {
-    const dr = computeDateRange(p);
-    setPreset(p);
-    setDateRange(dr);
-    loadAll(dr);
-  }
+  const [showUnmapped, setShowUnmapped] = useState(false);
 
   const filtered = currentInbox === "all"
     ? conversations
@@ -217,6 +39,65 @@ export default function HiverDashboard() {
   const inboxesToShow = currentInbox === "all"
     ? inboxes
     : inboxes.filter((i) => String(i.id) === currentInbox);
+
+  // Always computed across all 8 inboxes regardless of the current filter —
+  // this is the "compare all of them, then jump into one" view, so narrowing
+  // it to match currentInbox would just leave a 1-row table.
+  const inboxSummaries = inboxes.map((inbox) => {
+    const ic = conversations.filter((c) => String(c._inbox_id) === String(inbox.id));
+    return {
+      inbox,
+      total: ic.length,
+      open: ic.filter((c) => c.status === "open").length,
+      closed: ic.filter((c) => c.status === "closed").length,
+      unassigned: ic.filter((c) => !c.assignee?.assignee_id).length,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  // Real Asana/Hubstaff pods (as opposed to Hiver's own "inbox" grouping,
+  // which is what inboxSummaries/hv-pod-grid actually track despite the
+  // "pod" naming left over from before that distinction was cleaned up).
+  // Resolved per-conversation via its assignee's email, since Hiver has no
+  // native pod concept. "Unmapped" = assigned to someone not in the pod
+  // roster; "Unassigned" = no assignee at all — kept separate so the four
+  // pod rows plus these two always sum to the same total shown up top.
+  const POD_ORDER = ["MAS Legato", "Jemajo", "Philippines"];
+  const { podSummaries, unmappedByAssignee } = (() => {
+    const byPod = new Map<string, { total: number; open: number; closed: number }>();
+    const byAssignee = new Map<number, { name: string; email: string; count: number }>();
+    const bump = (key: string, status: string) => {
+      const cur = byPod.get(key) ?? { total: 0, open: 0, closed: 0 };
+      cur.total++;
+      if (status === "closed") cur.closed++;
+      else if (status !== "pending") cur.open++;
+      byPod.set(key, cur);
+    };
+    for (const c of conversations) {
+      const aid = c.assignee?.assignee_id;
+      if (!aid) { bump("Unassigned", c.status); continue; }
+      const email = users[aid]?.email?.toLowerCase();
+      const podName = email ? podByEmail[email] : undefined;
+      bump(podName ?? "Unmapped", c.status);
+      if (!podName) {
+        const u = users[aid];
+        const cur = byAssignee.get(aid) ?? {
+          name: u ? `${u.first_name} ${u.last_name}`.trim() : `User #${aid}`,
+          email: u?.email ?? "—",
+          count: 0,
+        };
+        cur.count++;
+        byAssignee.set(aid, cur);
+      }
+    }
+    const order = [...POD_ORDER, "Unmapped", "Unassigned"];
+    const summaries = order
+      .map((name) => ({ name, ...(byPod.get(name) ?? { total: 0, open: 0, closed: 0 }) }))
+      .filter((p) => POD_ORDER.includes(p.name) || p.total > 0);
+    return {
+      podSummaries: summaries,
+      unmappedByAssignee: Array.from(byAssignee.values()).sort((a, b) => b.count - a.count),
+    };
+  })();
 
   const convList = (() => {
     let cs = filtered;
@@ -243,7 +124,7 @@ export default function HiverDashboard() {
       <div className="hv-error">
         <div className="hv-error-title">⚠ Failed to load</div>
         <div className="hv-error-msg">{error}</div>
-        <button className="hv-retry-btn" onClick={() => loadAll(dateRange)}>↺ Retry</button>
+        <button className="hv-retry-btn" onClick={reload}>↺ Retry</button>
       </div>
     );
   }
@@ -254,20 +135,12 @@ export default function HiverDashboard() {
       <div className="hv-header">
         <div className="hv-header-left">
           <div className="hv-title">Overview</div>
-          <div className="hv-sub">GP Bookkeeper · {inboxes.length} pods · {conversations.length} total conversations</div>
+          <div className="hv-sub">GP Bookkeeper · {inboxes.length} inboxes · {conversations.length} total conversations</div>
+          <div style={{ marginTop: 8 }}>
+            <Link href="/dashboard/hiver/unactioned" className="hv-drill-btn">Unactioned Emails Report</Link>
+          </div>
         </div>
         <div className="hv-header-right">
-          <div className="hv-presets">
-            {(["today","week","month","30d","90d","all"] as DatePreset[]).map((p) => (
-              <button
-                key={p}
-                className={`hv-preset-btn${preset === p ? " active" : ""}`}
-                onClick={() => applyPreset(p)}
-              >
-                {p === "all" ? "All" : p === "today" ? "Today" : p === "week" ? "Week" : p === "month" ? "Month" : p}
-              </button>
-            ))}
-          </div>
           <select
             className="hv-inbox-sel"
             value={currentInbox}
@@ -278,16 +151,43 @@ export default function HiverDashboard() {
               <option key={i.id} value={String(i.id)}>{i.display_name}</option>
             ))}
           </select>
-          <button className="hv-refresh-btn" onClick={() => loadAll(dateRange)}>↺ Refresh</button>
+          <button className="hv-refresh-btn" onClick={reload}>↺ Refresh</button>
         </div>
       </div>
+
+      <div className="hv-note">{HIVER_DATE_FILTER_NOTE}</div>
+
+      {/* Jump to Pod */}
+      {allPods.length > 0 && (
+        <div className="hv-table-wrap" style={{ marginBottom: 24 }}>
+          <div className="hv-table-head">
+            <div className="hv-table-title">Jump to Pod</div>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {allPods.map((p) => (
+              <Link key={p.id} href={`/dashboard/hiver/pod/${p.id}`} className="hv-drill-btn" style={{ textDecoration: "none" }}>
+                {p.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {failedInboxes.length > 0 && (
+        <div className="hv-error" style={{ marginBottom: 22 }}>
+          <div className="hv-error-title">⚠ {failedInboxes.length} inbox{failedInboxes.length !== 1 ? "es" : ""} didn&apos;t load</div>
+          <div className="hv-error-msg">
+            {failedInboxes.join(", ")} — likely rate-limited by Hiver. Numbers below exclude these. Try Refresh.
+          </div>
+        </div>
+      )}
 
       {/* Aggregate strip */}
       <div className="hv-agg-strip">
         <div className="hv-agg-card">
           <div className="hv-agg-lbl">Total Conversations</div>
           <div className="hv-agg-val hv-c-or">{total}</div>
-          <div className="hv-agg-sub">{inboxes.length} pods · {Object.keys(users).length} agents</div>
+          <div className="hv-agg-sub">{inboxes.length} inboxes · {Object.keys(users).length} agents</div>
         </div>
         <div className="hv-agg-card">
           <div className="hv-agg-lbl">Open</div>
@@ -306,7 +206,101 @@ export default function HiverDashboard() {
         </div>
       </div>
 
-      {/* Pod grid */}
+      {/* By Inbox summary */}
+      <div className="hv-table-wrap">
+        <div className="hv-table-head">
+          <div className="hv-table-title">By Inbox</div>
+          <div className="hv-table-sub">{inboxSummaries.length} inbox{inboxSummaries.length !== 1 ? "es" : ""} · click one to drill in</div>
+        </div>
+        <table className="hv-table">
+          <thead>
+            <tr><th>Inbox</th><th>Total</th><th>Open</th><th>Closed</th><th>Unassigned</th></tr>
+          </thead>
+          <tbody>
+            {inboxSummaries.map(({ inbox, total: t, open: o, closed: cl, unassigned: u }) => (
+              <tr key={inbox.id}>
+                <td className="hv-table-primary">
+                  <Link href={`/dashboard/hiver/inbox/${inbox.id}`} className="hv-drill-btn">
+                    {inbox.display_name}
+                  </Link>
+                </td>
+                <td className="hv-table-muted">{t}</td>
+                <td style={{ color: "#fb923c", fontWeight: 700 }}>{o}</td>
+                <td style={{ color: "#34d399", fontWeight: 700 }}>{cl}</td>
+                <td style={{ color: u > 0 ? "#f87171" : "var(--text-3)", fontWeight: u > 0 ? 700 : 400 }}>{u}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* By Pod summary */}
+      <div className="hv-table-wrap">
+        <div className="hv-table-head">
+          <div className="hv-table-title">By Pod</div>
+          <div className="hv-table-sub">Same conversations as above, grouped by assignee rather than inbox</div>
+        </div>
+        <table className="hv-table">
+          <thead>
+            <tr><th>Pod</th><th>Total</th><th>Open</th><th>Closed</th></tr>
+          </thead>
+          <tbody>
+            {podSummaries.map((p) => {
+              if (p.name !== "Unmapped") {
+                return (
+                  <tr key={p.name}>
+                    <td className={POD_ORDER.includes(p.name) ? "hv-table-primary" : "hv-table-muted"}>{p.name}</td>
+                    <td className="hv-table-muted">{p.total}</td>
+                    <td style={{ color: "#fb923c", fontWeight: 700 }}>{p.open}</td>
+                    <td style={{ color: "#34d399", fontWeight: 700 }}>{p.closed}</td>
+                  </tr>
+                );
+              }
+              return (
+                <Fragment key={p.name}>
+                  <tr>
+                    <td className="hv-table-primary">
+                      <button type="button" className="hv-expand-btn" onClick={() => setShowUnmapped((v) => !v)}>
+                        {p.name} {showUnmapped ? "▴" : "▾"}
+                      </button>
+                    </td>
+                    <td className="hv-table-muted">{p.total}</td>
+                    <td style={{ color: "#fb923c", fontWeight: 700 }}>{p.open}</td>
+                    <td style={{ color: "#34d399", fontWeight: 700 }}>{p.closed}</td>
+                  </tr>
+                  {showUnmapped && (
+                    <tr>
+                      <td colSpan={4} style={{ padding: 0 }}>
+                        <div className="hv-unmapped-detail">
+                          <div className="hv-unmapped-hint">
+                            Assigned to someone not yet in a pod roster — add them under Admin → Pods.
+                          </div>
+                          <table className="hv-table">
+                            <thead>
+                              <tr><th>Assignee</th><th>Email</th><th>Conversations</th></tr>
+                            </thead>
+                            <tbody>
+                              {unmappedByAssignee.map((a) => (
+                                <tr key={a.email}>
+                                  <td className="hv-table-primary">{a.name}</td>
+                                  <td className="hv-table-muted">{a.email}</td>
+                                  <td className="hv-table-muted">{a.count}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Inbox grid */}
       <div className="hv-pod-grid">
         {inboxesToShow.map((inbox, podIdx) => {
           const ic = conversations.filter((c) => String(c._inbox_id) === String(inbox.id));
@@ -319,10 +313,10 @@ export default function HiverDashboard() {
           const resPct  = tot > 0 ? Math.round(icl / tot * 100) : 0;
 
           const health = openPct < 30
-            ? { label: "Healthy",  color: "#22c55e" }
+            ? { label: "Healthy",  color: "#34d399" }
             : openPct < 60
-            ? { label: "Moderate", color: "#f97316" }
-            : { label: "Critical", color: "#ef4444" };
+            ? { label: "Moderate", color: "#fb923c" }
+            : { label: "Critical", color: "#f87171" };
 
           // Per-agent breakdown
           const agentMap: Record<number, { open: number; pending: number; closed: number }> = {};
@@ -347,7 +341,9 @@ export default function HiverDashboard() {
               {/* Header */}
               <div className="hv-pod-header">
                 <div className="hv-pod-title-group">
-                  <div className="hv-pod-name">{inbox.display_name}</div>
+                  <Link href={`/dashboard/hiver/inbox/${inbox.id}`} className="hv-pod-name" style={{ textDecoration: "none" }}>
+                    {inbox.display_name} →
+                  </Link>
                   <div className="hv-pod-email">{inbox.email || "—"}</div>
                 </div>
                 <div
@@ -362,7 +358,7 @@ export default function HiverDashboard() {
               {/* KPIs */}
               <div className="hv-pod-kpis">
                 <div className="hv-pod-kpi">
-                  <div className="hv-pod-kpi-val" style={{ color: "#f97316" }}>{io}</div>
+                  <div className="hv-pod-kpi-val" style={{ color: "#fb923c" }}>{io}</div>
                   <div className="hv-pod-kpi-lbl">Open</div>
                 </div>
                 <div className="hv-pod-kpi">
@@ -370,11 +366,11 @@ export default function HiverDashboard() {
                   <div className="hv-pod-kpi-lbl">Pending</div>
                 </div>
                 <div className="hv-pod-kpi">
-                  <div className="hv-pod-kpi-val" style={{ color: "#22c55e" }}>{icl}</div>
+                  <div className="hv-pod-kpi-val" style={{ color: "#34d399" }}>{icl}</div>
                   <div className="hv-pod-kpi-lbl">Closed</div>
                 </div>
                 <div className="hv-pod-kpi">
-                  <div className="hv-pod-kpi-val" style={{ color: iu > 0 ? "#ef4444" : "#22c55e" }}>{iu}</div>
+                  <div className="hv-pod-kpi-val" style={{ color: iu > 0 ? "#f87171" : "#34d399" }}>{iu}</div>
                   <div className="hv-pod-kpi-lbl">Unassigned</div>
                 </div>
               </div>
@@ -404,9 +400,9 @@ export default function HiverDashboard() {
                             <div className="hv-agent-email">{u.email || ""}</div>
                           </div>
                           <div className="hv-agent-counts">
-                            <span style={{ color: "#f97316", fontWeight: 700 }}>{s.open} open</span>
+                            <span style={{ color: "#fb923c", fontWeight: 700 }}>{s.open} open</span>
                             {s.pending > 0 && <span style={{ color: "#4f8ef7", fontWeight: 700 }}>{s.pending} pend</span>}
-                            <span style={{ color: "#22c55e", fontWeight: 700 }}>{s.closed} closed</span>
+                            <span style={{ color: "#34d399", fontWeight: 700 }}>{s.closed} closed</span>
                           </div>
                         </div>
                       );
@@ -448,7 +444,7 @@ export default function HiverDashboard() {
               {/* Footer */}
               <div className="hv-pod-footer">
                 <span>{tot} total conversations</span>
-                <span style={{ color: resPct >= 70 ? "#22c55e" : resPct >= 40 ? "#f97316" : "#ef4444", fontWeight: 600 }}>
+                <span style={{ color: resPct >= 70 ? "#34d399" : resPct >= 40 ? "#fb923c" : "#f87171", fontWeight: 600 }}>
                   {resPct}% resolved
                 </span>
               </div>

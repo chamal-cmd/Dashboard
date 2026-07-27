@@ -1,0 +1,6 @@
+.topBar {
+  position: sticky; top: 0; z-index: 60;
+  display: flex; align-items: center; gap: 20px;
+  padding: 12px 24px;
+  background: var(--card); border-bottom: 1px solid var(--border);
+}

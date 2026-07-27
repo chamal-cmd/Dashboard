@@ -20,3 +20,13 @@ export async function getPodByEmail(): Promise<Map<string, string>> {
   }
   return map;
 }
+
+// Every pod regardless of activity — for a fixed pod switcher, unlike
+// filtering to pods that currently have tracked hours/tasks/calls.
+export async function getAllPods(): Promise<{ id: string; name: string }[]> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("pods").select("id, name");
+  return (data ?? [])
+    .map((p) => ({ id: p.id as string, name: p.name as string }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

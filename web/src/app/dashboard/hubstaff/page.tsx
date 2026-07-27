@@ -3,6 +3,10 @@ import HubstaffDashboard from "./HubstaffDashboard";
 import "@/components/detail-page-theme.css";
 import "@/app/dashboard/aircall/aircall-page.css";
 
+// Without this, Next.js can statically cache a render of this page from
+// before the latest deploy, serving stale Hubstaff data indefinitely.
+export const dynamic = "force-dynamic";
+
 export default async function HubstaffPage() {
   const hubstaff = await getHubstaffOverview(7, 100);
   const live = !hubstaff.error;

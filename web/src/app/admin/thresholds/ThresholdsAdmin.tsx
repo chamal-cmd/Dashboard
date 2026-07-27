@@ -10,29 +10,29 @@ const SECTIONS = [
   {
     title: "Asana",
     rows: [
-      { key: "asana.overdue_warn",     label: "Overdue tasks — warn at",     unit: "tasks", color: "#f97316" },
-      { key: "asana.overdue_critical", label: "Overdue tasks — critical at",  unit: "tasks", color: "#ef4444" },
+      { key: "asana.overdue_warn",     label: "Overdue tasks — warn at",     unit: "tasks", color: "#fb923c" },
+      { key: "asana.overdue_critical", label: "Overdue tasks — critical at",  unit: "tasks", color: "#f87171" },
     ],
   },
   {
     title: "Hubstaff",
     rows: [
-      { key: "hubstaff.activity_warn",     label: "Avg activity — warn below",     unit: "%",     color: "#f97316" },
-      { key: "hubstaff.activity_critical", label: "Avg activity — critical below",  unit: "%",     color: "#ef4444" },
+      { key: "hubstaff.activity_warn",     label: "Avg activity — warn below",     unit: "%",     color: "#fb923c" },
+      { key: "hubstaff.activity_critical", label: "Avg activity — critical below",  unit: "%",     color: "#f87171" },
     ],
   },
   {
     title: "Aircall",
     rows: [
-      { key: "aircall.missed_warn",     label: "Missed calls — warn at",    unit: "calls", color: "#f97316" },
-      { key: "aircall.missed_critical", label: "Missed calls — critical at", unit: "calls", color: "#ef4444" },
+      { key: "aircall.missed_warn",     label: "Missed calls — warn at",    unit: "calls", color: "#fb923c" },
+      { key: "aircall.missed_critical", label: "Missed calls — critical at", unit: "calls", color: "#f87171" },
     ],
   },
   {
     title: "Hiver",
     rows: [
-      { key: "hiver.open_warn",     label: "Open emails — warn at",    unit: "emails", color: "#f97316" },
-      { key: "hiver.open_critical", label: "Open emails — critical at", unit: "emails", color: "#ef4444" },
+      { key: "hiver.open_warn",     label: "Open emails — warn at",    unit: "emails", color: "#fb923c" },
+      { key: "hiver.open_critical", label: "Open emails — critical at", unit: "emails", color: "#f87171" },
     ],
   },
 ];
@@ -58,7 +58,7 @@ export default function ThresholdsAdmin({ initial }: { initial: Settings }) {
 
   return (
     <div>
-      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#ef444415", borderRadius: 6 }}>{error}</div>}
+      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#f8717115", borderRadius: 6 }}>{error}</div>}
 
       <div className="adminThresholdGrid">
         {SECTIONS.map((section) => (
@@ -87,7 +87,7 @@ export default function ThresholdsAdmin({ initial }: { initial: Settings }) {
           {saving ? "Saving…" : "Save all thresholds"}
         </button>
         {saved && <span className="adminSaved">Saved</span>}
-        <span style={{ fontSize: 12, color: "#6b7280" }}>
+        <span style={{ fontSize: 12, color: "var(--text-3)" }}>
           Thresholds affect badge colours on the overview dashboard. Changes take effect immediately.
         </span>
       </div>

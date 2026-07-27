@@ -1,7 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mean, median, round1 } from "@/lib/stats";
-import type { AsanaTask } from "./asana";
+import { TASK_COLS, mapTask, fetchAllOpenTasks, aggregateOpenTasks, ASANA_CUTOFF_ISO, type AsanaTask, type RawTask } from "./asana";
+import { auTodayISODate, auDateISODate } from "@/lib/business-tz";
 
 const DAY_MS = 86400000;
 
@@ -23,109 +24,148 @@ export interface AsanaPersonDetail {
   avgOpenTaskAgeDays: number | null;
   medianOpenTaskAgeDays: number | null;
   openByProject: PersonProjectCount[];
+  openTasks: AsanaTask[];
   overdueTasks: AsanaTask[];
   dueSoonTasks: AsanaTask[];
   recentCompletions: AsanaTask[];
-  error?: string;
+  recentlyModified: AsanaTask[];
 }
 
-type Row = {
-  id: string; name: string; project_name: string | null; assignee_name: string | null;
-  due_on: string | null; completed_at: string | null; created_at: string; modified_at: string;
-};
-
-const TASK_COLS = "id, name, project_name, assignee_name, due_on, completed_at, created_at, modified_at";
-
-function mapTask(r: Row): AsanaTask {
-  return {
-    id: r.id, name: r.name, projectName: r.project_name, assigneeName: r.assignee_name,
-    dueOn: r.due_on, completedAt: r.completed_at, createdAt: r.created_at, modifiedAt: r.modified_at,
-  };
+// Pages a single filtered/ordered asana_tasks query past PostgREST's default
+// 1000-row cap — same page-until-short-page loop as fetchAllOpenTasks in
+// asana.ts, but for full TASK_COLS-shaped rows instead of the narrow
+// stats-only shape, so this file's detail lists (open/overdue/due-soon/
+// completed/modified) are never silently truncated at a small sample.
+async function fetchAllTaskRows(
+  queryFactory: (from: number, to: number) => PromiseLike<{ data: RawTask[] | null; error: unknown }>
+): Promise<RawTask[]> {
+  const rows: RawTask[] = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await queryFactory(offset, offset + PAGE - 1);
+    if (error) throw error;
+    rows.push(...((data ?? []) as RawTask[]));
+    if (!data || data.length < PAGE) break;
+  }
+  return rows;
 }
 
+// Returns null both when the person doesn't exist and when the lookup
+// itself fails — either way the page falls back to its 404 state rather
+// than crashing on an unhandled Supabase error.
 export async function getAsanaPersonDetail(assigneeId: string): Promise<AsanaPersonDetail | null> {
-  const admin = createAdminClient();
+  try {
+    const admin = createAdminClient();
 
-  const today = new Date().toISOString().slice(0, 10);
-  const in7   = new Date(Date.now() + 7 * DAY_MS).toISOString().slice(0, 10);
-  const week  = new Date(Date.now() - 7 * DAY_MS).toISOString();
-  const month = new Date(Date.now() - 30 * DAY_MS).toISOString();
+    const today = auTodayISODate();
+    const in7   = auDateISODate(7);
+    const week  = new Date(Date.now() - 7 * DAY_MS).toISOString();
+    const month = new Date(Date.now() - 30 * DAY_MS).toISOString();
 
-  // Who is this? Grab one task row for the display name + pod.
-  const { data: sample } = await admin
-    .from("asana_tasks")
-    .select("assignee_name, pod_id")
-    .eq("assignee_id", assigneeId)
-    .limit(1)
-    .maybeSingle();
-  if (!sample) return null;
+    // Who is this? Grab one task row for the display name + pod.
+    const { data: sample } = await admin
+      .from("asana_tasks")
+      .select("assignee_name, pod_id")
+      .eq("assignee_id", assigneeId)
+      .gte("created_at", ASANA_CUTOFF_ISO)
+      .limit(1)
+      .maybeSingle();
+    if (!sample) return null;
 
-  let podName: string | null = null;
-  if (sample.pod_id) {
-    const { data: pod } = await admin.from("pods").select("name").eq("id", sample.pod_id).maybeSingle();
-    podName = pod?.name ?? null;
+    let podName: string | null = null;
+    if (sample.pod_id) {
+      const { data: pod } = await admin.from("pods").select("name").eq("id", sample.pod_id).maybeSingle();
+      podName = pod?.name ?? null;
+    }
+
+    const [
+      { count: completedWeek },
+      { count: completedMonth },
+      openRows,
+      openTaskRows,
+      overdueRows,
+      dueSoonRows,
+      doneRows,
+      modRows,
+    ] = await Promise.all([
+      admin.from("asana_tasks").select("id", { count: "exact", head: true })
+        .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", week).gte("created_at", ASANA_CUTOFF_ISO),
+      admin.from("asana_tasks").select("id", { count: "exact", head: true })
+        .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", month).gte("created_at", ASANA_CUTOFF_ISO),
+      fetchAllOpenTasks(admin, { column: "assignee_id", value: assigneeId }),
+      // Full TASK_COLS shape of every one of this person's open tasks (not
+      // just the narrow stats columns fetchAllOpenTasks returns above) — the
+      // source for the flat "All Open Tasks" table, so it can render real
+      // per-task Asana links.
+      fetchAllTaskRows((from, to) =>
+        admin.from("asana_tasks").select(TASK_COLS)
+          .eq("assignee_id", assigneeId).eq("completed", false).gte("created_at", ASANA_CUTOFF_ISO)
+          .order("due_on", { ascending: true, nullsFirst: false })
+          // Unique-id secondary sort keeps .range() pages stable across ties
+          // (esp. the due_on-null block) so no task is duplicated or dropped.
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllTaskRows((from, to) =>
+        admin.from("asana_tasks").select(TASK_COLS)
+          .eq("assignee_id", assigneeId).eq("completed", false).lt("due_on", today).gte("created_at", ASANA_CUTOFF_ISO)
+          .order("due_on", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllTaskRows((from, to) =>
+        admin.from("asana_tasks").select(TASK_COLS)
+          .eq("assignee_id", assigneeId).eq("completed", false).gte("due_on", today).lte("due_on", in7).gte("created_at", ASANA_CUTOFF_ISO)
+          .order("due_on", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllTaskRows((from, to) =>
+        admin.from("asana_tasks").select(TASK_COLS)
+          .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", month).gte("created_at", ASANA_CUTOFF_ISO)
+          .order("completed_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllTaskRows((from, to) =>
+        admin.from("asana_tasks").select(TASK_COLS)
+          .eq("assignee_id", assigneeId).eq("completed", false).gte("modified_at", month).gte("created_at", ASANA_CUTOFF_ISO)
+          .order("modified_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+    ]);
+
+    const overdue = openRows.filter((r) => r.due_on && r.due_on < today).length;
+    const dueSoon = openRows.filter((r) => r.due_on && r.due_on >= today && r.due_on <= in7).length;
+
+    const nowMs = Date.now();
+    const ages = openRows.map((r) => (nowMs - new Date(r.created_at).getTime()) / DAY_MS);
+
+    const byProjectCounts = aggregateOpenTasks(openRows, (r) => r.project_name ?? "(no project)", today);
+    const openByProject = Array.from(byProjectCounts.entries())
+      .map(([project, v]) => ({ project, ...v }))
+      .sort((a, b) => b.open - a.open);
+
+    return {
+      assigneeId,
+      name: sample.assignee_name ?? "Unknown",
+      podName,
+      open: openRows.length,
+      overdue,
+      dueSoon,
+      completedThisWeek: completedWeek ?? 0,
+      completedThisMonth: completedMonth ?? 0,
+      avgOpenTaskAgeDays: ages.length > 0 ? round1(mean(ages)!) : null,
+      medianOpenTaskAgeDays: ages.length > 0 ? round1(median(ages)!) : null,
+      openByProject,
+      openTasks:         openTaskRows.map(mapTask),
+      overdueTasks:      overdueRows.map(mapTask),
+      dueSoonTasks:      dueSoonRows.map(mapTask),
+      recentCompletions: doneRows.map(mapTask),
+      recentlyModified:  modRows.map(mapTask),
+    };
+  } catch {
+    return null;
   }
-
-  const [
-    { count: completedWeek },
-    { count: completedMonth },
-    openRes,
-    overdueRes,
-    dueSoonRes,
-    doneRes,
-  ] = await Promise.all([
-    admin.from("asana_tasks").select("id", { count: "exact", head: true })
-      .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", week),
-    admin.from("asana_tasks").select("id", { count: "exact", head: true })
-      .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", month),
-    // All open tasks for this person (for counts, age stats and per-project
-    // breakdown) — one person's open list comfortably fits in one page.
-    admin.from("asana_tasks").select("project_name, due_on, created_at")
-      .eq("assignee_id", assigneeId).eq("completed", false).range(0, 4999),
-    admin.from("asana_tasks").select(TASK_COLS)
-      .eq("assignee_id", assigneeId).eq("completed", false).lt("due_on", today)
-      .order("due_on", { ascending: true }).limit(30),
-    admin.from("asana_tasks").select(TASK_COLS)
-      .eq("assignee_id", assigneeId).eq("completed", false).gte("due_on", today).lte("due_on", in7)
-      .order("due_on", { ascending: true }).limit(30),
-    admin.from("asana_tasks").select(TASK_COLS)
-      .eq("assignee_id", assigneeId).eq("completed", true).gte("completed_at", month)
-      .order("completed_at", { ascending: false }).limit(20),
-  ]);
-
-  const openRows = openRes.data ?? [];
-  const overdue = openRows.filter((r) => r.due_on && r.due_on < today).length;
-  const dueSoon = openRows.filter((r) => r.due_on && r.due_on >= today && r.due_on <= in7).length;
-
-  const nowMs = Date.now();
-  const ages = openRows.map((r) => (nowMs - new Date(r.created_at).getTime()) / DAY_MS);
-
-  const byProject = new Map<string, { open: number; overdue: number }>();
-  for (const r of openRows) {
-    const key = r.project_name ?? "(no project)";
-    const cur = byProject.get(key) ?? { open: 0, overdue: 0 };
-    cur.open += 1;
-    if (r.due_on && r.due_on < today) cur.overdue += 1;
-    byProject.set(key, cur);
-  }
-  const openByProject = Array.from(byProject.entries())
-    .map(([project, v]) => ({ project, ...v }))
-    .sort((a, b) => b.open - a.open);
-
-  return {
-    assigneeId,
-    name: sample.assignee_name ?? "Unknown",
-    podName,
-    open: openRows.length,
-    overdue,
-    dueSoon,
-    completedThisWeek: completedWeek ?? 0,
-    completedThisMonth: completedMonth ?? 0,
-    avgOpenTaskAgeDays: ages.length > 0 ? round1(mean(ages)!) : null,
-    medianOpenTaskAgeDays: ages.length > 0 ? round1(median(ages)!) : null,
-    openByProject,
-    overdueTasks:      ((overdueRes.data ?? []) as Row[]).map(mapTask),
-    dueSoonTasks:      ((dueSoonRes.data ?? []) as Row[]).map(mapTask),
-    recentCompletions: ((doneRes.data ?? []) as Row[]).map(mapTask),
-  };
 }

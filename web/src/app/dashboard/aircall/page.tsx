@@ -3,6 +3,8 @@ import AircallDashboard from "./AircallDashboard";
 import "@/components/detail-page-theme.css";
 import "./aircall-page.css";
 
+export const dynamic = "force-dynamic";
+
 export default async function AircallPage() {
   const aircall = await getAircallOverview(200, 7);
   const live = !aircall.error;

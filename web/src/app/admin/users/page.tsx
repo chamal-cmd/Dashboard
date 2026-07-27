@@ -1,6 +1,8 @@
 import { getUser } from "@/lib/supabase/get-user";
 import UsersPanel from "./_components/UsersPanel";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminUsersPage() {
   const user = await getUser();
   return (

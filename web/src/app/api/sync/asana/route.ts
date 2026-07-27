@@ -23,6 +23,7 @@ type SyncState = {
   // queue drains (anything modified during the cycle gets picked up again)
   cycleStart: string | null;
   cycleSynced: number;
+  cycleDeleted: number;
 };
 
 async function asanaGet(path: string, token: string, attempt = 0): Promise<{ data?: unknown[]; next_page?: { uri?: string } }> {
@@ -60,6 +61,24 @@ async function asanaGetAll(path: string, token: string): Promise<unknown[]> {
   return out;
 }
 
+// Looks up the pod_id currently stored on each of these task ids, so the
+// upsert below can preserve it when the incoming Asana data has no
+// resolvable assignee->pod mapping (e.g. the assignee was removed from
+// asana_members) instead of nulling out a previously-known pod_id.
+async function fetchExistingPodIds(
+  admin: ReturnType<typeof createAdminClient>,
+  ids: string[]
+): Promise<Map<string, string | null>> {
+  const out = new Map<string, string | null>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const { data, error } = await admin.from("asana_tasks").select("id, pod_id").in("id", chunk);
+    if (error) throw new Error(`fetch existing pod_id failed: ${error.message}`);
+    for (const row of data ?? []) out.set(row.id as string, (row.pod_id as string | null) ?? null);
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get("secret")?.trim();
   const expected = process.env.SYNC_SECRET?.trim();
@@ -79,8 +98,10 @@ export async function GET(req: NextRequest) {
     const { data: stateRow } = await admin
       .from("sync_state").select("value").eq("key", "asana").maybeSingle();
     let state: SyncState = (stateRow?.value as SyncState) ?? {
-      queue: [], watermark: null, cycleStart: null, cycleSynced: 0,
+      queue: [], watermark: null, cycleStart: null, cycleSynced: 0, cycleDeleted: 0,
     };
+    // Older persisted state (pre-reconciliation) won't have this field yet.
+    if (typeof state.cycleDeleted !== "number") state.cycleDeleted = 0;
 
     let cycleCompleted = false;
 
@@ -95,6 +116,7 @@ export async function GET(req: NextRequest) {
         watermark: state.watermark,
         cycleStart: new Date().toISOString(),
         cycleSynced: 0,
+        cycleDeleted: 0,
       };
     }
 
@@ -119,7 +141,13 @@ export async function GET(req: NextRequest) {
     const now = new Date().toISOString();
     const modifiedSince = state.watermark ? `&modified_since=${encodeURIComponent(state.watermark)}` : "";
     let synced = 0;
+    let deleted = 0;
 
+    // Each project only appears once in `state.queue` per cycle (the queue is
+    // only rebuilt once it's fully drained — see above), so doing the full
+    // live-gid reconciliation fetch here runs it exactly once per project per
+    // full pass through all projects, never repeatedly on the same project
+    // within a cycle's incremental ticks.
     for (const project of batch) {
       const tasks = (await asanaGetAll(
         `/projects/${project.gid}/tasks?limit=100&opt_fields=${TASK_FIELDS}${modifiedSince}`, token
@@ -128,32 +156,73 @@ export async function GET(req: NextRequest) {
         created_at: string; modified_at: string; due_on: string | null;
         assignee: { gid: string; name: string } | null;
       }[];
-      if (tasks.length === 0) continue;
 
-      const rows = tasks.map((t) => ({
-        id: t.gid,
-        name: t.name,
-        project_id: project.gid,
-        project_name: project.name,
-        assignee_id: t.assignee?.gid ?? null,
-        assignee_name: t.assignee?.name ?? null,
-        pod_id: t.assignee ? podByGid.get(t.assignee.gid) ?? null : null,
-        completed: t.completed,
-        completed_at: t.completed_at,
-        due_on: t.due_on,
-        created_at: t.created_at,
-        modified_at: t.modified_at,
-        synced_at: now,
-      }));
-      for (let i = 0; i < rows.length; i += 500) {
-        const { error } = await admin.from("asana_tasks").upsert(rows.slice(i, i + 500), { onConflict: "id" });
-        if (error) throw new Error(`upsert failed for ${project.name}: ${error.message}`);
+      if (tasks.length > 0) {
+        // Only overwrite pod_id when the current assignee resolves to a pod;
+        // otherwise keep whatever pod_id is already stored so an unresolved
+        // mapping (e.g. the assignee was deleted from asana_members) doesn't
+        // silently null out a task's pod on its next ordinary edit.
+        const existingPodById = await fetchExistingPodIds(admin, tasks.map((t) => t.gid));
+
+        const rows = tasks.map((t) => {
+          const mappedPod = t.assignee ? podByGid.get(t.assignee.gid) ?? null : null;
+          const pod_id = t.assignee ? mappedPod ?? existingPodById.get(t.gid) ?? null : null;
+          return {
+            id: t.gid,
+            name: t.name,
+            project_id: project.gid,
+            project_name: project.name,
+            assignee_id: t.assignee?.gid ?? null,
+            assignee_name: t.assignee?.name ?? null,
+            pod_id,
+            completed: t.completed,
+            completed_at: t.completed_at,
+            due_on: t.due_on,
+            created_at: t.created_at,
+            modified_at: t.modified_at,
+            synced_at: now,
+          };
+        });
+        for (let i = 0; i < rows.length; i += 500) {
+          const { error } = await admin.from("asana_tasks").upsert(rows.slice(i, i + 500), { onConflict: "id" });
+          if (error) throw new Error(`upsert failed for ${project.name}: ${error.message}`);
+        }
+        synced += rows.length;
       }
-      synced += rows.length;
+
+      // ── Tombstone reconciliation ────────────────────────────────────────
+      // modified_since only surfaces tasks that were changed — a task that
+      // was deleted in Asana never shows up there, so it would otherwise
+      // linger in asana_tasks forever (counted as open/overdue) even though
+      // it no longer exists upstream. Fetch this project's full current gid
+      // list (cheap: gid only, no other fields) and drop any locally-stored
+      // row for this project that isn't in it.
+      const liveGids = new Set(
+        (
+          (await asanaGetAll(`/projects/${project.gid}/tasks?limit=100&opt_fields=gid`, token)) as { gid: string }[]
+        ).map((t) => t.gid)
+      );
+      // Paginated: PostgREST caps rows-per-request regardless of an explicit
+      // large limit, and some projects have well over a thousand tasks.
+      const storedIds: string[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: storedPage, error: storedErr } = await admin
+          .from("asana_tasks").select("id").eq("project_id", project.gid).range(offset, offset + 999);
+        if (storedErr) throw new Error(`fetch stored ids failed for ${project.name}: ${storedErr.message}`);
+        storedIds.push(...(storedPage ?? []).map((r) => r.id as string));
+        if (!storedPage || storedPage.length < 1000) break;
+      }
+      const staleIds = storedIds.filter((id) => !liveGids.has(id));
+      for (let i = 0; i < staleIds.length; i += 500) {
+        const { error } = await admin.from("asana_tasks").delete().in("id", staleIds.slice(i, i + 500));
+        if (error) throw new Error(`reconcile delete failed for ${project.name}: ${error.message}`);
+      }
+      deleted += staleIds.length;
     }
 
     state.queue = rest;
     state.cycleSynced += synced;
+    state.cycleDeleted += deleted;
     if (rest.length === 0) cycleCompleted = true;
 
     await admin.from("sync_state").upsert(
@@ -170,6 +239,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       projectsProcessed: batch.length,
       tasksUpserted: synced,
+      tasksDeleted: deleted,
       projectsRemaining: rest.length,
       cycleCompleted,
       watermark: state.watermark,

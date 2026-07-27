@@ -2,6 +2,8 @@ import { getUser } from "@/lib/supabase/get-user";
 import { createClient } from "@/lib/supabase/server";
 import ProfileSettings from "@/components/ProfileSettings";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminSettingsPage() {
   const user = await getUser();
   const supabase = await createClient();

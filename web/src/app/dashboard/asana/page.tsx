@@ -3,6 +3,8 @@ import AsanaDashboard from "./AsanaDashboard";
 import "@/components/detail-page-theme.css";
 import "@/app/dashboard/aircall/aircall-page.css";
 
+export const dynamic = "force-dynamic";
+
 export default async function AsanaPage() {
   const asana = await getAsanaOverview(7);
   const live = !asana.error;

@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ThresholdsAdmin from "./ThresholdsAdmin";
 import "../admin-theme.css";
 
+export const dynamic = "force-dynamic";
+
 async function getSettings() {
   const admin = createAdminClient();
   const { data } = await admin.from("admin_settings").select("key, value");

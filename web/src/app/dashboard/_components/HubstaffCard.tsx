@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { HubstaffProjectStat } from "@/lib/data/hubstaff";
+import { InfoTip } from "@/components/InfoTip";
+import "@/components/info-tip.css";
 
 const PRESETS = [
   { label: "Today", days: 1 },
@@ -81,19 +83,19 @@ export default function HubstaffCard({
           <div className="hubMiniStats" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.avgMemberActivityPct != null ? `${data.avgMemberActivityPct}%` : "—"}</div>
-              <div className="hubMiniStatLbl">Avg activity (per member)</div>
+              <div className="hubMiniStatLbl">Avg activity (per member)<InfoTip text="Arithmetic mean of each member's own activity % — everyone counts equally, regardless of hours logged." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.productivityPct != null ? `${data.productivityPct}%` : "—"}</div>
-              <div className="hubMiniStatLbl">Org productivity</div>
+              <div className="hubMiniStatLbl">Org productivity<InfoTip text="Total active time divided by total tracked time across everyone — hours-weighted, unlike the per-member average above." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.activeCount ?? "—"}</div>
-              <div className="hubMiniStatLbl">Active members</div>
+              <div className="hubMiniStatLbl">Active members<InfoTip text="Distinct people with at least some tracked time in the selected range." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.hoursTracked ?? "—"}h</div>
-              <div className="hubMiniStatLbl">Hours tracked</div>
+              <div className="hubMiniStatLbl">Hours tracked<InfoTip text="Total hours logged by everyone in the selected range, across all projects." /></div>
             </div>
           </div>
 

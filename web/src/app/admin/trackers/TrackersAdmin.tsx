@@ -57,7 +57,7 @@ export default function TrackersAdmin({ initial }: { initial: Tracker[] }) {
 
   return (
     <div>
-      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#ef444415", borderRadius: 6 }}>{error}</div>}
+      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#f8717115", borderRadius: 6 }}>{error}</div>}
 
       <div className="adminCard">
         <table className="adminTable">
@@ -85,7 +85,7 @@ export default function TrackersAdmin({ initial }: { initial: Tracker[] }) {
       </div>
 
       <div style={{ marginTop: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#9ca3af", marginBottom: 10 }}>Add tracker</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-3)", marginBottom: 10 }}>Add tracker</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
             className="adminInput"

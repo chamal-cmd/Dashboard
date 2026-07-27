@@ -79,7 +79,7 @@ export default function PodsAdmin({ initial }: { initial: Pod[] }) {
 
   return (
     <div>
-      {error && <div style={{ color: "#ef4444", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#ef444415", borderRadius: 6 }}>{error}</div>}
+      {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#f8717115", borderRadius: 6 }}>{error}</div>}
 
       {pods.map((pod) => (
         <div className="podCard" key={pod.id}>

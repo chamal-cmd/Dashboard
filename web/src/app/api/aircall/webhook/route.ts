@@ -53,12 +53,13 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  // Aircall message ids are UUID strings, not integers — never coerce to Number
   const { error: dbError } = await supabase.from("aircall_messages").upsert(
     {
-      id: Number(msgId),
+      id: String(msgId),
       number_id: numberId != null ? Number(numberId) : null,
       number_name: numberName,
-      contact_id: data.contact_id != null ? Number(data.contact_id) : null,
+      contact_id: data.contact_id != null ? String(data.contact_id) : null,
       direction: (data.direction as string) ?? "unknown",
       channel: (data.channel as string) ?? null,
       content: (data.content as string) ?? null,

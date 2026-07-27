@@ -1,7 +1,10 @@
 import "server-only";
-import { getPodByEmail } from "./pods";
+import { getPodByEmail, getAllPods } from "./pods";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mean, median, stdDev, round1 } from "@/lib/stats";
+import { batchMap } from "@/lib/concurrency";
+import { auTodayISODate, auDateISODate } from "@/lib/business-tz";
+import { isoWeekMonday } from "@/lib/iso-week";
 
 export interface HubstaffProjectStat {
   projectId: number;
@@ -12,6 +15,7 @@ export interface HubstaffProjectStat {
 
 export interface HubstaffPodStat {
   pod: string;
+  podId: string | null; // matches Asana's pods.id — lets the UI link through to /dashboard/hubstaff/pod/[id]
   hours: number;
   activityPct: number | null;
   billableHours: number;
@@ -30,6 +34,7 @@ export interface HubstaffMemberStat {
   billableHours: number;
   idleHours: number;
   manualHours: number;
+  workBreakHours: number;
 }
 
 export interface HubstaffOverview {
@@ -48,13 +53,20 @@ export interface HubstaffOverview {
   workBreakHours: number | null;
   keyboardActions: number | null;
   mouseActions: number | null;
-  taskCount: number | null;
   teams: { id: number; name: string }[];
   projects: HubstaffProjectStat[];
   pods: HubstaffPodStat[];
+  allPods: { id: string; name: string }[]; // every pod regardless of activity — for a fixed pod switcher, unlike pods which only lists pods with tracked hours in range
   members: HubstaffMemberStat[];
+  trend: HubstaffTrendPoint[]; // per-weekday tracked hours + activity across the window, oldest first — for the comparison bar chart
   rangeLabel: string;
   error?: string;
+}
+
+export interface HubstaffTrendPoint {
+  date: string; // YYYY-MM-DD (weekday only — weekends are already filtered out)
+  hours: number;
+  activityPct: number | null;
 }
 
 // GP Bookkeeper Pty Ltd
@@ -132,11 +144,12 @@ function emptyResult(rangeLabel: string): HubstaffOverview {
     workBreakHours: null,
     keyboardActions: null,
     mouseActions: null,
-    taskCount: null,
     teams: [],
     projects: [],
     pods: [],
+    allPods: [],
     members: [],
+    trend: [],
     rangeLabel,
   };
 }
@@ -145,42 +158,107 @@ type UserInfo = { name: string; email: string };
 
 // Hubstaff's own /members endpoint doesn't include name/email at all — only
 // the dedicated per-user lookup does. Resolved with limited concurrency,
-// same pattern as Aircall's contact-name resolution.
+// same pattern as Aircall's contact-name resolution. One retry with a short
+// backoff (same shape as Hiver's fetchWithRetry) before giving up — without
+// it, a single transient failure on one user's lookup silently drops that
+// person from the By Pod table with no error surfaced anywhere.
 async function resolveUserInfo(token: string, userIds: number[]): Promise<Map<number, UserInfo>> {
-  const result = new Map<number, UserInfo>();
-  const CONCURRENCY = 5;
-  for (let i = 0; i < userIds.length; i += CONCURRENCY) {
-    const batch = userIds.slice(i, i + CONCURRENCY);
-    const looked = await Promise.all(
-      batch.map(async (id) => {
-        try {
-          const res = await fetch(`https://api.hubstaff.com/v2/users/${id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!res.ok) return [id, null] as const;
+  const pairs = await batchMap(userIds, async (id) => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`https://api.hubstaff.com/v2/users/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
           const data = await res.json();
           return [id, { name: data.user?.name ?? `User ${id}`, email: data.user?.email ?? "" }] as const;
-        } catch {
-          return [id, null] as const;
         }
-      })
-    );
-    for (const [id, info] of looked) if (info) result.set(id, info);
-  }
+      } catch {
+        // fall through to retry/backoff below
+      }
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 300));
+    }
+    return [id, null] as const;
+  });
+  const result = new Map<number, UserInfo>();
+  for (const [id, info] of pairs) if (info) result.set(id, info);
   return result;
 }
 
 const hoursOf = (seconds: number) => Math.round((seconds / 3600) * 10) / 10;
 
-type UserTotals = { tracked: number; overall: number; billable: number; idle: number; manual: number };
-const emptyTotals = (): UserTotals => ({ tracked: 0, overall: 0, billable: 0, idle: 0, manual: 0 });
+type UserTotals = { tracked: number; overall: number; billable: number; idle: number; manual: number; work_break: number };
+const emptyTotals = (): UserTotals => ({ tracked: 0, overall: 0, billable: 0, idle: 0, manual: 0, work_break: 0 });
+
+type DailyActivityEntry = {
+  date: string; // "YYYY-MM-DD", bucketed to the org's local (AU) day
+  user_id: number; project_id: number; tracked: number; overall: number;
+  keyboard: number; mouse: number; manual: number; idle: number; billable: number; work_break: number;
+};
+
+// The team works weekdays, so Saturday/Sunday tracked time (overtime, stray
+// sessions) is excluded from every Hubstaff metric — otherwise it would
+// distort hours totals and activity averages. Hubstaff's `date` is already
+// the org's local calendar day, so parsing it as UTC midnight and reading
+// the UTC weekday gives the correct day-of-week with no timezone drift.
+function isWeekday(dateStr: string): boolean {
+  const dow = new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+  return dow !== 0 && dow !== 6;
+}
+
+// Hubstaff caps /activities/daily at ~100 entries per page by default and
+// silently stops there unless you both raise page_limit and follow
+// pagination.next_page_start_id yourself — without this, any window with
+// enough users/projects/days to produce more than one page's worth of rows
+// undercounts hours (confirmed live: 316h shown vs 651h actual for a 7-day
+// window) and specifically drops the most recent days, since Hubstaff
+// returns pages oldest-first.
+async function fetchAllDailyActivities(
+  token: string,
+  startDate: string,
+  endDate: string
+): Promise<{ ok: boolean; status: number; entries: DailyActivityEntry[] }> {
+  const entries: DailyActivityEntry[] = [];
+  let pageStartId: string | number | undefined;
+  let lastStatus = 200;
+  for (;;) {
+    const url = new URL(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/activities/daily`);
+    url.searchParams.set("date[start]", startDate);
+    url.searchParams.set("date[stop]", endDate);
+    url.searchParams.set("page_limit", "500");
+    if (pageStartId !== undefined) url.searchParams.set("page_start_id", String(pageStartId));
+
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+    lastStatus = res.status;
+    if (!res.ok) return { ok: false, status: res.status, entries };
+
+    const data = await res.json();
+    entries.push(...((data.daily_activities ?? []) as DailyActivityEntry[]));
+
+    const nextPageStartId = data.pagination?.next_page_start_id;
+    if (!nextPageStartId) break;
+    pageStartId = nextPageStartId;
+  }
+  return { ok: true, status: lastStatus, entries };
+}
 
 // `days` = 1 for "today" (compact card), larger for the dedicated page's
 // wider window. `projectsLimit` caps how many project rows come back.
-export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise<HubstaffOverview> {
-  const startDate = new Date(Date.now() - (days - 1) * 86400000).toISOString().slice(0, 10);
-  const endDate = new Date().toISOString().slice(0, 10);
-  const rangeLabel = days === 1 ? "today" : `last ${days} days`;
+// `specificDate` (YYYY-MM-DD) overrides both — used to look at one exact
+// calendar day instead of a trailing window ending today.
+export async function getHubstaffOverview(days = 1, projectsLimit = 10, specificDate?: string): Promise<HubstaffOverview> {
+  let startDate: string;
+  let endDate: string;
+  let rangeLabel: string;
+  if (specificDate) {
+    startDate = specificDate;
+    endDate = specificDate;
+    rangeLabel = new Date(`${specificDate}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  } else {
+    startDate = auDateISODate(-(days - 1));
+    endDate = auTodayISODate();
+    rangeLabel = days === 1 ? "today" : `last ${days} days`;
+  }
 
   if (!process.env.HUBSTAFF_REFRESH_TOKEN) return { ...emptyResult(rangeLabel), error: "not configured" };
 
@@ -188,20 +266,17 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
     const token = await getToken();
     const auth = { headers: { Authorization: `Bearer ${token}` } };
 
-    const [activitiesRes, projectsRes, orgRes, teamsRes, tasksRes] = await Promise.all([
-      fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/activities/daily?date[start]=${startDate}&date[stop]=${endDate}`, auth),
+    const [activitiesResult, projectsRes, orgRes, teamsRes] = await Promise.all([
+      fetchAllDailyActivities(token, startDate, endDate),
       fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/projects`, auth),
       fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}`, auth),
       fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/teams`, auth),
-      fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/tasks?page_limit=500`, auth),
     ]);
-    if (!activitiesRes.ok) return { ...emptyResult(rangeLabel), error: `Hubstaff returned ${activitiesRes.status}` };
+    if (!activitiesResult.ok) return { ...emptyResult(rangeLabel), error: `Hubstaff returned ${activitiesResult.status}` };
 
-    const activities = await activitiesRes.json();
-    const entries: {
-      user_id: number; project_id: number; tracked: number; overall: number;
-      keyboard: number; mouse: number; manual: number; idle: number; billable: number; work_break: number;
-    }[] = activities.daily_activities ?? [];
+    // Weekdays only — drop any Sat/Sun daily-activity rows before aggregating,
+    // so hours, activity %, per-member and per-pod stats all count weekdays only.
+    const entries: DailyActivityEntry[] = activitiesResult.entries.filter((e) => isWeekday(e.date));
 
     const projectNames = new Map<number, string>();
     if (projectsRes.ok) {
@@ -211,12 +286,28 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
 
     const orgName = orgRes.ok ? (await orgRes.json()).organization?.name ?? null : null;
     const teams = teamsRes.ok ? ((await teamsRes.json()).teams ?? []).map((t: { id: number; name: string }) => ({ id: t.id, name: t.name })) : [];
-    const taskCount = tasksRes.ok ? ((await tasksRes.json()).tasks ?? []).length : null;
 
     const activeUsers = new Set(entries.map((e) => e.user_id));
     const sum = (key: keyof (typeof entries)[number]) => entries.reduce((s, e) => s + (e[key] as number), 0);
     const totalTracked = sum("tracked");
     const totalOverall = sum("overall");
+
+    // Per-weekday time series (tracked hours + activity) across the window —
+    // powers the comparison bar chart. Oldest-first so the chart reads L→R.
+    const byDate = new Map<string, { tracked: number; overall: number }>();
+    for (const e of entries) {
+      const cur = byDate.get(e.date) ?? { tracked: 0, overall: 0 };
+      cur.tracked += e.tracked;
+      cur.overall += e.overall;
+      byDate.set(e.date, cur);
+    }
+    const trend: HubstaffTrendPoint[] = Array.from(byDate.entries())
+      .map(([date, v]) => ({
+        date,
+        hours: hoursOf(v.tracked),
+        activityPct: v.tracked > 0 ? Math.round((v.overall / v.tracked) * 100) : null,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     // Per-project breakdown (existing behaviour)
     const byProject = new Map<number, { tracked: number; overall: number }>();
@@ -247,12 +338,15 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
       cur.billable += e.billable;
       cur.idle += e.idle;
       cur.manual += e.manual;
+      cur.work_break += e.work_break;
       byUser.set(e.user_id, cur);
     }
-    const [userInfo, podByEmail] = await Promise.all([
+    const [userInfo, podByEmail, allPods] = await Promise.all([
       resolveUserInfo(token, Array.from(byUser.keys())),
       getPodByEmail(),
+      getAllPods(),
     ]);
+    const podIdByName = new Map(allPods.map((p) => [p.name, p.id]));
 
     const members: HubstaffMemberStat[] = Array.from(byUser.entries()).map(([userId, v]) => {
       const info = userInfo.get(userId);
@@ -267,6 +361,7 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
         billableHours: hoursOf(v.billable),
         idleHours: hoursOf(v.idle),
         manualHours: hoursOf(v.manual),
+        workBreakHours: hoursOf(v.work_break),
       };
     }).sort((a, b) => b.hours - a.hours);
 
@@ -301,6 +396,7 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
     const pods: HubstaffPodStat[] = Array.from(byPod.entries())
       .map(([pod, v]) => ({
         pod,
+        podId: podIdByName.get(pod) ?? null,
         hours: hoursOf(v.tracked),
         activityPct: v.tracked > 0 ? Math.round((v.overall / v.tracked) * 100) : null,
         billableHours: hoursOf(v.billable),
@@ -326,15 +422,182 @@ export async function getHubstaffOverview(days = 1, projectsLimit = 10): Promise
       workBreakHours: hoursOf(sum("work_break")),
       keyboardActions: sum("keyboard"),
       mouseActions: sum("mouse"),
-      taskCount,
       teams,
       projects,
       pods,
+      allPods,
       members,
+      trend,
       rangeLabel,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { ...emptyResult(rangeLabel), error: `Hubstaff unreachable: ${msg}` };
+  }
+}
+
+export interface HubstaffPeriodSummary {
+  start: string;
+  end: string;
+  hours: number;
+  activityPct: number | null;
+  error?: string;
+}
+
+// Lightweight single-number summary for an arbitrary date range — powers the
+// multi-period comparison chart. Deliberately does NOT do the user/pod/project
+// resolution getHubstaffOverview does (those are per-user API calls); it only
+// sums the weekday daily-activity totals, so several periods can be fetched
+// cheaply in parallel from the client.
+export async function getHubstaffPeriodSummary(start: string, end: string): Promise<HubstaffPeriodSummary> {
+  if (!process.env.HUBSTAFF_REFRESH_TOKEN) return { start, end, hours: 0, activityPct: null, error: "not configured" };
+  try {
+    const token = await getToken();
+    const res = await fetchAllDailyActivities(token, start, end);
+    if (!res.ok) return { start, end, hours: 0, activityPct: null, error: `Hubstaff returned ${res.status}` };
+    const entries = res.entries.filter((e) => isWeekday(e.date)); // weekdays only, same as everywhere else
+    const tracked = entries.reduce((s, e) => s + e.tracked, 0);
+    const overall = entries.reduce((s, e) => s + e.overall, 0);
+    return { start, end, hours: hoursOf(tracked), activityPct: tracked > 0 ? Math.round((overall / tracked) * 100) : null };
+  } catch (e) {
+    return { start, end, hours: 0, activityPct: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export interface HubstaffWeeklyPoint {
+  email: string; // lowercased, matches the pod/bookkeeper email-join used elsewhere
+  weekStartISO: string; // Monday of that ISO week
+  hours: number;
+}
+
+// Weekly tracked-hours per member across a trailing N-week window — powers
+// the Bookkeeper performance-over-time chart. Keyed by email (not Hubstaff
+// user id) so it joins cleanly against the Asana member roster, same as
+// getHubstaffOverview's own byEmail lookups.
+export async function getHubstaffWeeklyTrend(weeksCount = 8): Promise<{ points: HubstaffWeeklyPoint[]; error?: string }> {
+  if (!process.env.HUBSTAFF_REFRESH_TOKEN) return { points: [], error: "not configured" };
+  try {
+    const token = await getToken();
+    const endDate = auTodayISODate();
+    const startDate = auDateISODate(-(weeksCount * 7 - 1));
+    const res = await fetchAllDailyActivities(token, startDate, endDate);
+    if (!res.ok) return { points: [], error: `Hubstaff returned ${res.status}` };
+
+    const entries = res.entries.filter((e) => isWeekday(e.date));
+    const userIds = Array.from(new Set(entries.map((e) => e.user_id)));
+    const userInfo = await resolveUserInfo(token, userIds);
+
+    const byKey = new Map<string, number>(); // `${userId}:${weekMonday}` -> tracked seconds
+    for (const e of entries) {
+      const key = `${e.user_id}:${isoWeekMonday(e.date)}`;
+      byKey.set(key, (byKey.get(key) ?? 0) + e.tracked);
+    }
+
+    const points: HubstaffWeeklyPoint[] = [];
+    for (const [key, trackedSec] of byKey.entries()) {
+      const sep = key.indexOf(":");
+      const info = userInfo.get(Number(key.slice(0, sep)));
+      if (!info?.email) continue;
+      points.push({ email: info.email.toLowerCase(), weekStartISO: key.slice(sep + 1), hours: hoursOf(trackedSec) });
+    }
+    return { points };
+  } catch (e) {
+    return { points: [], error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export interface HubstaffLeaveEntry {
+  id: number;
+  userId: number;
+  name: string;
+  email: string;
+  pod: string | null;
+  policyName: string;
+  status: string; // "approved" (only status this app surfaces as real leave)
+  startDate: string; // YYYY-MM-DD, from the request's own per-day breakdown
+  endDate: string;
+  allDay: boolean;
+  message: string | null;
+  days: string[]; // every calendar day (YYYY-MM-DD) this request covers — powers the calendar view
+}
+
+export interface HubstaffLeaveResult {
+  entries: HubstaffLeaveEntry[]; // approved only, sorted by startDate
+  error?: string;
+}
+
+type RawTimeOffRequest = {
+  id: number;
+  user_id: number;
+  time_off_policy_id: number;
+  status: string;
+  all_day: boolean;
+  starts_at: string;
+  stops_at: string;
+  message: string | null;
+  time_off_request_days?: { date: string }[];
+};
+
+// Hubstaff's Time Off module — confirmed live for this account (v2
+// /time_off_requests + /time_off_policies, both real endpoints distinct from
+// activity tracking). Paginates the same way as /activities/daily
+// (page_limit + next_page_start_id). Only "approved" requests are surfaced —
+// denied ones aren't real leave, and this account's data has no "pending"
+// status observed, but the filter guards against it either way.
+export async function getHubstaffLeave(): Promise<HubstaffLeaveResult> {
+  if (!process.env.HUBSTAFF_REFRESH_TOKEN) return { entries: [], error: "not configured" };
+  try {
+    const token = await getToken();
+    const auth = { headers: { Authorization: `Bearer ${token}` } };
+
+    const requests: RawTimeOffRequest[] = [];
+    let pageStartId: number | undefined;
+    for (;;) {
+      const url = new URL(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/time_off_requests`);
+      url.searchParams.set("page_limit", "500");
+      if (pageStartId !== undefined) url.searchParams.set("page_start_id", String(pageStartId));
+      const res = await fetch(url.toString(), auth);
+      if (!res.ok) return { entries: [], error: `Hubstaff returned ${res.status}` };
+      const data = await res.json();
+      requests.push(...((data.time_off_requests ?? []) as RawTimeOffRequest[]));
+      const next = data.pagination?.next_page_start_id;
+      if (!next) break;
+      pageStartId = next;
+    }
+
+    const policyNames = new Map<number, string>();
+    const policiesRes = await fetch(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/time_off_policies`, auth);
+    if (policiesRes.ok) {
+      const pd = await policiesRes.json();
+      for (const p of pd.time_off_policies ?? []) policyNames.set(p.id, p.name);
+    }
+
+    const approved = requests.filter((r) => r.status === "approved");
+    const userIds = Array.from(new Set(approved.map((r) => r.user_id)));
+    const [userInfo, podByEmail] = await Promise.all([resolveUserInfo(token, userIds), getPodByEmail()]);
+
+    const entries: HubstaffLeaveEntry[] = approved.map((r) => {
+      const info = userInfo.get(r.user_id);
+      const email = info?.email ?? "";
+      const days = (r.time_off_request_days ?? []).map((d) => d.date).sort();
+      return {
+        id: r.id,
+        userId: r.user_id,
+        name: info?.name ?? `User ${r.user_id}`,
+        email,
+        pod: email ? podByEmail.get(email.toLowerCase()) ?? null : null,
+        policyName: policyNames.get(r.time_off_policy_id) ?? "Leave",
+        status: r.status,
+        startDate: days[0] ?? r.starts_at.slice(0, 10),
+        endDate: days[days.length - 1] ?? r.stops_at.slice(0, 10),
+        allDay: r.all_day,
+        message: r.message,
+        days,
+      };
+    }).sort((a, b) => a.startDate.localeCompare(b.startDate));
+
+    return { entries };
+  } catch (e) {
+    return { entries: [], error: e instanceof Error ? e.message : String(e) };
   }
 }

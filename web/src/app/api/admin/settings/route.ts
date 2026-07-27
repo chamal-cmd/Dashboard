@@ -20,11 +20,12 @@ export async function POST(req: Request) {
 
   const body: Record<string, unknown> = await req.json();
   const admin = createAdminClient();
-  const rows = Object.entries(body).map(([key, value]) => ({
-    key,
-    value: typeof value === "number" ? value : Number(value),
-    updated_at: new Date().toISOString(),
-  }));
+  const rows: { key: string; value: number; updated_at: string }[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    const num = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(num)) return NextResponse.json({ error: `Invalid value for ${key}` }, { status: 400 });
+    rows.push({ key, value: num, updated_at: new Date().toISOString() });
+  }
   const { error } = await admin.from("admin_settings").upsert(rows, { onConflict: "key" });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

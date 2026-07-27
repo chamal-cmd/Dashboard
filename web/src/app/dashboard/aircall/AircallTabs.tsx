@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { InfoTip } from "@/components/InfoTip";
 import "./aircall-page.css";
+import "@/components/info-tip.css";
 
 // Inline types so this client component doesn't import the server-only data module
 interface AircallCall {
   id: number; direction: string; status: string; duration: number;
   number: string; contactName: string | null; contactCompany: string | null;
-  agent: string | null; startedAt: string;
+  agent: string | null; agentEmail: string | null; startedAt: string;
 }
 interface RepeatCaller {
   number: string; contactName: string | null; contactCompany: string | null;
   count: number; totalDuration: number; lastCallAt: string;
 }
 interface AircallMessage {
-  id: number; body: string; from: string | null; to: string | null;
+  id: string; body: string; from: string | null; to: string | null;
   direction: "inbound" | "outbound"; status: string;
   channel: string | null;
   agent: string | null; line: string | null; contactName: string | null; createdAt: string;
@@ -32,6 +34,7 @@ interface AircallOverview {
   missedRatePct: number | null; callsPerDay: number | null; lines: string[];
   recentCalls: AircallCall[]; repeatCallers: RepeatCaller[];
   messaging: MessagingStats | null;
+  allPods: { id: string; name: string }[];
 }
 
 function formatDuration(s: number) {
@@ -59,6 +62,12 @@ function msgStatusClass(s: string) {
 
 type Tab = "calls" | "messaging";
 
+// Aircall has no messaging list/GET endpoint (webhook-only, see aircall.ts) —
+// their own analytics page is the authoritative source for message volume,
+// so it's linked directly rather than waiting on our own webhook pipeline.
+const AIRCALL_MESSAGING_ANALYTICS_URL =
+  "https://dashboard.aircall.io/analytics/overview/messages?date=today&date_breakdown=daily&team_filter_option=users_belong_to_team&timezone=Asia%2FColombo";
+
 export default function AircallTabs({ aircall }: { aircall: AircallOverview }) {
   const [tab, setTab] = useState<Tab>("calls");
 
@@ -80,40 +89,40 @@ export default function AircallTabs({ aircall }: { aircall: AircallOverview }) {
           <div className="dpSectionLbl">Volume</div>
           <div className="dpKpiGrid dpKpiGrid5">
             {[
-              { val: aircall.total,              lbl: "Total Calls",          color: "#4f8ef7" },
-              { val: aircall.inbound,            lbl: "Inbound",              color: "#22c55e" },
-              { val: aircall.outboundAnswered,   lbl: "Outbound Answered",    color: "#a78bfa" },
-              { val: aircall.outboundUnanswered, lbl: "Outbound Unanswered",  color: "#f59e0b" },
-              { val: aircall.missedOrVoicemail,  lbl: "Missed / Voicemail",   color: "#ef4444" },
-            ].map(({ val, lbl, color }) => (
+              { val: aircall.total,              lbl: "Total Calls",          color: "#4f8ef7", tip: "All inbound and outbound calls in the selected date range." },
+              { val: aircall.inbound,            lbl: "Inbound",              color: "#34d399", tip: "Calls that came in from a customer, regardless of whether they were answered." },
+              { val: aircall.outboundAnswered,   lbl: "Outbound Answered",    color: "#a78bfa", tip: "Calls your team dialed out that the other side picked up." },
+              { val: aircall.outboundUnanswered, lbl: "Outbound Unanswered",  color: "#fbbf24", tip: "Calls your team dialed out that were not picked up." },
+              { val: aircall.missedOrVoicemail,  lbl: "Missed / Voicemail",   color: "#f87171", tip: "Inbound calls that were never answered or went to voicemail." },
+            ].map(({ val, lbl, color, tip }) => (
               <div key={lbl} className="dpKpi" style={{ "--kpi-accent": color } as React.CSSProperties}>
                 <div className="dpKpiVal">{val}</div>
-                <div className="dpKpiLbl">{lbl}</div>
+                <div className="dpKpiLbl">{lbl}<InfoTip text={tip} /></div>
               </div>
             ))}
           </div>
 
           <div className="dpSectionLbl">Quality</div>
           <div className="dpKpiGrid dpKpiGrid5 dpKpiGridLast">
-            <div className="dpKpi" style={{ "--kpi-accent": "#22c55e" } as React.CSSProperties}>
+            <div className="dpKpi" style={{ "--kpi-accent": "#34d399" } as React.CSSProperties}>
               <div className="dpKpiVal">{aircall.inboundAnswerRatePct != null ? `${aircall.inboundAnswerRatePct}%` : "—"}</div>
-              <div className="dpKpiLbl">Inbound Answer Rate</div>
+              <div className="dpKpiLbl">Inbound Answer Rate<InfoTip text="Of all inbound calls, the % that were actually answered (not missed or sent to voicemail) — how well the team services incoming calls." /></div>
             </div>
             <div className="dpKpi" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties}>
               <div className="dpKpiVal">{aircall.outboundConnectRatePct != null ? `${aircall.outboundConnectRatePct}%` : "—"}</div>
-              <div className="dpKpiLbl">Outbound Connect Rate</div>
+              <div className="dpKpiLbl">Outbound Connect Rate<InfoTip text="Of all outbound calls the team dialed, the % that connected — a different question from Inbound Answer Rate, so it's tracked separately." /></div>
             </div>
             <div className="dpKpi" style={{ "--kpi-accent": "#4f8ef7" } as React.CSSProperties}>
               <div className="dpKpiVal">{aircall.avgDurationSeconds != null ? formatDuration(aircall.avgDurationSeconds) : "—"}</div>
-              <div className="dpKpiLbl">Avg Duration {aircall.medianDurationSeconds != null && <span style={{ opacity: 0.6 }}>({formatDuration(aircall.medianDurationSeconds)} median)</span>}</div>
+              <div className="dpKpiLbl">Avg Duration {aircall.medianDurationSeconds != null && <span style={{ opacity: 0.6 }}>({formatDuration(aircall.medianDurationSeconds)} median)</span>}<InfoTip text="Mean call length across all calls. Median is shown too since a few very long calls can skew the average upward." /></div>
             </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#f59e0b" } as React.CSSProperties}>
+            <div className="dpKpi" style={{ "--kpi-accent": "#fbbf24" } as React.CSSProperties}>
               <div className="dpKpiVal">{aircall.callsPerDay ?? "—"}</div>
-              <div className="dpKpiLbl">Calls / Day</div>
+              <div className="dpKpiLbl">Calls / Day<InfoTip text="Total calls divided by the number of days in the selected range — normalizes volume so Today/7d/30d are actually comparable." /></div>
             </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#ef4444" } as React.CSSProperties}>
+            <div className="dpKpi" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties}>
               <div className="dpKpiVal">{aircall.missedRatePct != null ? `${aircall.missedRatePct}%` : "—"}</div>
-              <div className="dpKpiLbl">Missed Rate</div>
+              <div className="dpKpiLbl">Missed Rate<InfoTip text="Missed or voicemailed calls as a % of all calls (inbound and outbound combined)." /></div>
             </div>
           </div>
 
@@ -185,29 +194,29 @@ export default function AircallTabs({ aircall }: { aircall: AircallOverview }) {
       {/* ── Messaging tab ─────────────────────────────────── */}
       {tab === "messaging" && (
         <>
-          {!aircall.messaging || aircall.messaging.total === 0 ? (
-            <div className="acMsgUnavailable">
-              <div className="acMsgUnavailableIcon">💬</div>
-              <div className="acMsgUnavailableTitle">No messages yet</div>
-              <div className="acMsgUnavailableBody">
-                Messages appear here once the Aircall webhook is connected.<br />
-                Register the webhook URL in <strong>Aircall&nbsp;→&nbsp;Integrations&nbsp;→&nbsp;Webhooks</strong> to start capturing SMS &amp; WhatsApp history.
-              </div>
-            </div>
-          ) : (
+          <a
+            href={AIRCALL_MESSAGING_ANALYTICS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="acMsgAnalyticsLink"
+          >
+            📊 View full messaging analytics in Aircall ↗
+          </a>
+
+          {aircall.messaging && aircall.messaging.total > 0 && (
             <>
               <div className="dpSectionLbl">Volume</div>
               <div className="dpKpiGrid dpKpiGrid5">
                 {[
-                  { val: aircall.messaging.total,     lbl: "Total Messages", color: "#06b6d4" },
-                  { val: aircall.messaging.inbound,   lbl: "Inbound",        color: "#22c55e" },
-                  { val: aircall.messaging.outbound,  lbl: "Outbound",       color: "#a78bfa" },
-                  { val: aircall.messaging.delivered, lbl: "Delivered",      color: "#22c55e" },
-                  { val: aircall.messaging.failed,    lbl: "Failed",         color: "#ef4444" },
-                ].map(({ val, lbl, color }) => (
+                  { val: aircall.messaging.total,     lbl: "Total Messages", color: "#22d3ee", tip: "All SMS/WhatsApp messages captured via the Aircall webhook in the selected range." },
+                  { val: aircall.messaging.inbound,   lbl: "Inbound",        color: "#34d399", tip: "Messages received from a customer." },
+                  { val: aircall.messaging.outbound,  lbl: "Outbound",       color: "#a78bfa", tip: "Messages sent by the team." },
+                  { val: aircall.messaging.delivered, lbl: "Delivered",      color: "#34d399", tip: "Messages that Aircall confirmed as delivered, sent, or received." },
+                  { val: aircall.messaging.failed,    lbl: "Failed",         color: "#f87171", tip: "Messages Aircall marked as failed or undelivered." },
+                ].map(({ val, lbl, color, tip }) => (
                   <div key={lbl} className="dpKpi" style={{ "--kpi-accent": color } as React.CSSProperties}>
                     <div className="dpKpiVal">{val}</div>
-                    <div className="dpKpiLbl">{lbl}</div>
+                    <div className="dpKpiLbl">{lbl}<InfoTip text={tip} /></div>
                   </div>
                 ))}
               </div>

@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { AircallCall } from "@/lib/data/aircall";
+import { InfoTip } from "@/components/InfoTip";
+import "@/components/info-tip.css";
 
 const PRESETS = [
   { label: "Today", days: 1 },
@@ -94,19 +96,19 @@ export default function AircallCard(props: CardData & { live: boolean }) {
           <div className="hubMiniStats hubMiniStats2x2">
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.total ?? "—"}</div>
-              <div className="hubMiniStatLbl">Total Calls</div>
+              <div className="hubMiniStatLbl">Total Calls<InfoTip text="All inbound and outbound calls in the selected date range." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.inbound ?? "—"}</div>
-              <div className="hubMiniStatLbl">Inbound</div>
+              <div className="hubMiniStatLbl">Inbound<InfoTip text="Calls that came in from a customer, regardless of whether they were answered." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{outbound ?? "—"}</div>
-              <div className="hubMiniStatLbl">Outbound</div>
+              <div className="hubMiniStatLbl">Outbound<InfoTip text="Calls the team dialed out, both answered and unanswered." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.missedOrVoicemail ?? "—"}</div>
-              <div className="hubMiniStatLbl">Missed / Voicemail</div>
+              <div className="hubMiniStatLbl">Missed / Voicemail<InfoTip text="Inbound calls that were never answered or went to voicemail." /></div>
             </div>
           </div>
 

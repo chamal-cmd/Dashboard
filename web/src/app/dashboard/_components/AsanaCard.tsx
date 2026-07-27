@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { TrackerStat, AsanaVelocity } from "@/lib/data/asana";
+import { InfoTip } from "@/components/InfoTip";
+import "@/components/info-tip.css";
 
 const PRESETS = [
   { label: "Today", days: 1 },
@@ -83,33 +85,33 @@ export default function AsanaCard({
           <div className="hubMiniStats" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal">{data.openTotal}</div>
-              <div className="hubMiniStatLbl">Open tasks</div>
+              <div className="hubMiniStatLbl">Open tasks<InfoTip text="Every incomplete task across all clients and pods, right now." /></div>
             </div>
             <div className="hubMiniStat">
-              <div className="hubMiniStatVal" style={{ color: (data.overdueCount ?? 0) > 0 ? "#ef4444" : undefined }}>{data.overdueCount ?? "—"}</div>
-              <div className="hubMiniStatLbl">Overdue</div>
+              <div className="hubMiniStatVal" style={{ color: (data.overdueCount ?? 0) > 0 ? "#f87171" : undefined }}>{data.overdueCount ?? "—"}</div>
+              <div className="hubMiniStatLbl">Overdue<InfoTip text="Open tasks whose due date has already passed." /></div>
             </div>
             <div className="hubMiniStat">
               <div className="hubMiniStatVal" style={{ color: "#fbbf24" }}>{data.dueSoonCount ?? "—"}</div>
-              <div className="hubMiniStatLbl">Due in {days}d</div>
+              <div className="hubMiniStatLbl">Due in {days}d<InfoTip text="Open tasks due between today and the end of the selected range." /></div>
             </div>
           </div>
 
           {data.velocity && (
             <div className="hubMiniStats" style={{ gridTemplateColumns: "1fr 1fr 1fr", marginTop: 0 }}>
               <div className="hubMiniStat">
-                <div className="hubMiniStatVal" style={{ color: "#22c55e" }}>{data.velocity.completedInRange}</div>
-                <div className="hubMiniStatLbl">Completed ({days}d)</div>
+                <div className="hubMiniStatVal" style={{ color: "#34d399" }}>{data.velocity.completedInRange}</div>
+                <div className="hubMiniStatLbl">Completed ({days}d)<InfoTip text="Tasks marked complete within the selected range." /></div>
               </div>
               <div className="hubMiniStat">
                 <div className="hubMiniStatVal">{data.velocity.createdInRange}</div>
-                <div className="hubMiniStatLbl">Created ({days}d)</div>
+                <div className="hubMiniStatLbl">Created ({days}d)<InfoTip text="New tasks added within the selected range." /></div>
               </div>
               <div className="hubMiniStat">
-                <div className="hubMiniStatVal" style={{ color: net == null ? undefined : net > 0 ? "#ef4444" : "#22c55e" }}>
+                <div className="hubMiniStatVal" style={{ color: net == null ? undefined : net > 0 ? "#f87171" : "#34d399" }}>
                   {net == null ? "—" : net > 0 ? `+${net}` : net}
                 </div>
-                <div className="hubMiniStatLbl">Net ({days}d)</div>
+                <div className="hubMiniStatLbl">Net ({days}d)<InfoTip text="Created minus completed. Positive means the backlog grew in this window; negative means it shrank." /></div>
               </div>
             </div>
           )}

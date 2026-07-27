@@ -1,7 +1,9 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPodByEmail, getAllPods } from "./pods";
 import { median, round1 } from "@/lib/stats";
+import { batchMap } from "@/lib/concurrency";
 
 export interface AircallCall {
   id: number;
@@ -12,7 +14,19 @@ export interface AircallCall {
   contactName: string | null;
   contactCompany: string | null;
   agent: string | null;
+  agentEmail: string | null;
   startedAt: string;
+}
+
+export interface AircallAgentStat {
+  email: string;
+  name: string;
+  pod: string | null;
+  total: number;
+  inbound: number;
+  outboundAnswered: number;
+  outboundUnanswered: number;
+  missedOrVoicemail: number;
 }
 
 export interface RepeatCaller {
@@ -25,7 +39,7 @@ export interface RepeatCaller {
 }
 
 export interface AircallMessage {
-  id: number;
+  id: string;
   body: string;
   from: string | null;
   to: string | null;
@@ -68,6 +82,14 @@ export interface AircallOverview {
   recentCalls: AircallCall[];
   repeatCallers: RepeatCaller[];
   messaging: MessagingStats | null;
+  byAgent: AircallAgentStat[];
+  allPods: { id: string; name: string }[];
+  // True when the calls-fetch loop hit its page cap while Aircall still had
+  // more pages to give (next_page_link was non-null) — meaning the oldest
+  // calls in the requested window were dropped rather than pagination
+  // genuinely running out. Not surfaced in the UI yet; the signal exists so
+  // a future change can warn the user their stats are incomplete.
+  truncated: boolean;
   error?: string;
 }
 
@@ -81,7 +103,7 @@ type RawCall = {
   duration: number;
   raw_digits: string;
   started_at: number;
-  user: { name: string } | null;
+  user: { name: string; email: string | null } | null;
   number: { name: string } | null;
 };
 
@@ -104,38 +126,51 @@ const EMPTY: AircallOverview = {
   recentCalls: [],
   repeatCallers: [],
   messaging: null,
+  byAgent: [],
+  allPods: [],
+  truncated: false,
 };
 
 function isMissedOrVoicemail(c: RawCall) {
   return c.status === "missed" || c.status === "voicemail" || !!c.missed_call_reason || !!c.voicemail;
 }
 
+// Sri Lanka never observes DST, so a fixed +5:30 offset is safe year-round —
+// no Intl/timezone-database dependency needed. This matches the account's
+// own configured reporting timezone (see AIRCALL_MESSAGING_ANALYTICS_URL's
+// timezone=Asia/Colombo), which is what made "Today" disagree with Aircall's
+// own dashboard: this file was computing "the last 24 hours" (a rolling
+// window ending at whatever second the request happened to land on)
+// instead of "since midnight, Colombo time" (a calendar day) — two windows
+// that only ever coincide by accident.
+const COLOMBO_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function colomboMidnightEpochSeconds(daysAgo: number): number {
+  const shifted = new Date(Date.now() + COLOMBO_OFFSET_MS);
+  shifted.setUTCHours(0, 0, 0, 0);
+  shifted.setUTCDate(shifted.getUTCDate() - daysAgo);
+  return Math.floor((shifted.getTime() - COLOMBO_OFFSET_MS) / 1000);
+}
+
 // The call object's own `contact` field is unpopulated for this account, but
 // Aircall's contacts CRM can still be searched by phone number directly.
 async function resolveContactNames(auth: string, numbers: string[]): Promise<Map<string, ContactInfo>> {
+  const pairs = await batchMap(numbers, async (num) => {
+    try {
+      const res = await fetch(`https://api.aircall.io/v1/contacts/search?phone_number=${encodeURIComponent(num)}`, {
+        headers: { Authorization: `Basic ${auth}` },
+      });
+      if (!res.ok) return [num, { name: null, company: null }] as const;
+      const data = await res.json();
+      const contact = data.contacts?.[0];
+      if (!contact) return [num, { name: null, company: null }] as const;
+      const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || null;
+      return [num, { name, company: contact.company_name ?? null }] as const;
+    } catch {
+      return [num, { name: null, company: null }] as const;
+    }
+  });
   const result = new Map<string, ContactInfo>();
-  const CONCURRENCY = 5;
-  for (let i = 0; i < numbers.length; i += CONCURRENCY) {
-    const batch = numbers.slice(i, i + CONCURRENCY);
-    const looked = await Promise.all(
-      batch.map(async (num) => {
-        try {
-          const res = await fetch(`https://api.aircall.io/v1/contacts/search?phone_number=${encodeURIComponent(num)}`, {
-            headers: { Authorization: `Basic ${auth}` },
-          });
-          if (!res.ok) return [num, { name: null, company: null }] as const;
-          const data = await res.json();
-          const contact = data.contacts?.[0];
-          if (!contact) return [num, { name: null, company: null }] as const;
-          const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || null;
-          return [num, { name, company: contact.company_name ?? null }] as const;
-        } catch {
-          return [num, { name: null, company: null }] as const;
-        }
-      })
-    );
-    for (const [num, info] of looked) result.set(num, info);
-  }
+  for (const [num, info] of pairs) result.set(num, info);
   return result;
 }
 
@@ -150,6 +185,7 @@ function mapCall(c: RawCall, contacts: Map<string, ContactInfo>): AircallCall {
     contactName: contact?.name ?? null,
     contactCompany: contact?.company ?? null,
     agent: c.user?.name ?? null,
+    agentEmail: c.user?.email?.toLowerCase() ?? null,
     startedAt: new Date(c.started_at * 1000).toISOString(),
   };
 }
@@ -158,23 +194,48 @@ function mapCall(c: RawCall, contacts: Map<string, ContactInfo>): AircallCall {
 // the compact dashboard card only needs 10, the dedicated Aircall page wants
 // the full week. Every other stat is always computed from every call in the
 // window regardless of this limit.
-export async function getAircallOverview(callsLimit = 10, days = 7): Promise<AircallOverview> {
+//
+// `skipContacts` bypasses resolveContactNames — an individual Aircall API
+// call per unique phone number in the window, which was the entire cost of
+// a ~17s load for callers (Bookkeeper Stats, the pod page) that only need
+// byAgent/pods and never render a contact name.
+export async function getAircallOverview(callsLimit = 10, days = 7, opts?: { skipContacts?: boolean }): Promise<AircallOverview> {
   const id = process.env.AIRCALL_API_ID;
   const token = process.env.AIRCALL_API_TOKEN;
   if (!id || !token) return { ...EMPTY, error: "not configured" };
 
   const auth = Buffer.from(`${id}:${token}`).toString("base64");
   const now = Math.floor(Date.now() / 1000);
-  const weekAgo = now - days * 86400;
+  // days=1 ("Today") -> daysAgo=0 -> midnight today. days=7 -> midnight 6
+  // days ago, giving a 7-calendar-day window (today plus the 6 before it)
+  // ending now, same shape as before but anchored to a real day boundary.
+  const from = colomboMidnightEpochSeconds(days - 1);
 
   try {
+    // Kicked off now (2 cheap Supabase queries) rather than after the calls
+    // fetch — resolveContactNames below can issue one subrequest per unique
+    // phone number in the window (dozens+), and awaiting pod data only after
+    // that was silently starving it: Supabase's client doesn't throw on a
+    // failed fetch, it resolves with {data: null}, so getPodByEmail/getAllPods
+    // came back empty with no error surfaced anywhere. Firing this first
+    // means it's already in flight (or done) well before that burst.
+    const podDataPromise = Promise.all([getPodByEmail(), getAllPods()]);
+
     // Paginate through the full week rather than trusting a single-page
     // sample — Aircall's `status`/`direction` query filters are silently
     // ignored, so accurate breakdowns need every call, not a guess.
     const allCalls: RawCall[] = [];
-    let url: string | null = `https://api.aircall.io/v1/calls?from=${weekAgo}&to=${now}&per_page=50&order=desc`;
+    // Cap raised from 10 to 80 pages (50/page = up to 4,000 calls) — at 10
+    // pages/500 calls, the 30-day preset (500+ calls) and 90-day preset
+    // (1,300+ calls) were both silently truncated, and since order=desc
+    // drops the OLDEST calls in the window rather than the newest. 80 pages
+    // comfortably covers realistic volume even at the 90-day MAX_DAYS preset
+    // with headroom for growth.
+    const PAGE_CAP = 80;
+    let url: string | null = `https://api.aircall.io/v1/calls?from=${from}&to=${now}&per_page=50&order=desc`;
     let pages = 0;
-    while (url && pages < 10) {
+    let truncated = false;
+    while (url && pages < PAGE_CAP) {
       const res: Response = await fetch(url, { headers: { Authorization: `Basic ${auth}` } });
       if (!res.ok) return { ...EMPTY, error: `Aircall returned ${res.status}` };
       const data: { calls?: RawCall[]; meta?: { next_page_link?: string } } = await res.json();
@@ -182,12 +243,13 @@ export async function getAircallOverview(callsLimit = 10, days = 7): Promise<Air
       url = data.meta?.next_page_link ?? null;
       pages++;
     }
+    if (url) truncated = true; // loop exited on the page cap, not on pagination ending
 
     const outboundCalls = allCalls.filter((c) => c.direction === "outbound");
     const totalTalkTimeSeconds = allCalls.reduce((sum, c) => sum + c.duration, 0);
 
     const uniqueNumbers = Array.from(new Set(allCalls.map((c) => c.raw_digits)));
-    const contacts = await resolveContactNames(auth, uniqueNumbers);
+    const contacts = opts?.skipContacts ? new Map<string, ContactInfo>() : await resolveContactNames(auth, uniqueNumbers);
 
     // Repeat callers: group by number, keep anyone called 2+ times this week.
     const byNumber = new Map<string, { count: number; totalDuration: number; lastCallAt: number }>();
@@ -219,12 +281,12 @@ export async function getAircallOverview(callsLimit = 10, days = 7): Promise<Air
       const { data: msgs } = await supabase
         .from("aircall_messages")
         .select("id, direction, channel, content, status, number_name, message_at")
-        .gte("message_at", new Date(weekAgo * 1000).toISOString())
+        .gte("message_at", new Date(from * 1000).toISOString())
         .order("message_at", { ascending: false })
         .limit(200);
 
       if (msgs && msgs.length > 0) {
-        type DbMsg = { id: number; direction: string; channel: string | null; content: string | null; status: string | null; number_name: string | null; message_at: string | null };
+        type DbMsg = { id: string; direction: string; channel: string | null; content: string | null; status: string | null; number_name: string | null; message_at: string | null };
         const rows = msgs as DbMsg[];
         const delivered = rows.filter((m) => ["delivered", "sent", "received"].includes(m.status ?? "")).length;
         const failed = rows.filter((m) => ["failed", "undelivered"].includes(m.status ?? "")).length;
@@ -261,6 +323,30 @@ export async function getAircallOverview(callsLimit = 10, days = 7): Promise<Air
     const missedOrVoicemail = allCalls.filter(isMissedOrVoicemail).length;
     const durations = allCalls.map((c) => c.duration);
 
+    // Per-agent breakdown, keyed by email (reliable since Aircall's raw
+    // call.user object includes a real email, unlike its display-name-only
+    // `agent` field) — feeds the Bookkeeper Stats page's Aircall column and
+    // the per-pod page (which filters byAgent down to one pod's agents).
+    const [podByEmail, allPods] = await podDataPromise;
+    const agentBuckets = new Map<string, AircallAgentStat>();
+    for (const c of allCalls) {
+      const email = c.user?.email?.toLowerCase();
+      if (!email) continue;
+      const cur = agentBuckets.get(email) ?? {
+        email,
+        name: c.user?.name ?? email,
+        pod: podByEmail.get(email) ?? null,
+        total: 0, inbound: 0, outboundAnswered: 0, outboundUnanswered: 0, missedOrVoicemail: 0,
+      };
+      cur.total++;
+      if (c.direction === "inbound") cur.inbound++;
+      else if (c.answered_at) cur.outboundAnswered++;
+      else cur.outboundUnanswered++;
+      if (isMissedOrVoicemail(c)) cur.missedOrVoicemail++;
+      agentBuckets.set(email, cur);
+    }
+    const byAgent = Array.from(agentBuckets.values()).sort((a, b) => b.total - a.total);
+
     return {
       total: allCalls.length,
       inbound: inboundCalls.length,
@@ -278,6 +364,9 @@ export async function getAircallOverview(callsLimit = 10, days = 7): Promise<Air
       recentCalls: allCalls.slice(0, callsLimit).map((c) => mapCall(c, contacts)),
       repeatCallers,
       messaging,
+      byAgent,
+      allPods,
+      truncated,
     };
   } catch {
     return { ...EMPTY, error: "Aircall unreachable" };

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import AircallTabs from "./AircallTabs";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import "./aircall-page.css";
 
 type AircallData = React.ComponentProps<typeof AircallTabs>["aircall"];
@@ -44,8 +46,26 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
     if (!isNaN(n) && n >= 1) pickPreset(Math.min(n, MAX_DAYS));
   };
 
+  if (loading) {
+    return <LoadingScreen icon="☎" title="AIRCALL" status="Loading Aircall data…" color="#34d399" />;
+  }
+
   return (
     <>
+      {/* ── Pod quick-switcher ───────────────────────────────── */}
+      {data.allPods.length > 0 && (
+        <>
+          <div className="dpSectionLbl">Jump to Pod</div>
+          <div className="acTabBar" style={{ marginBottom: 24 }}>
+            {data.allPods.map((p) => (
+              <Link key={p.id} href={`/dashboard/aircall/pod/${p.id}`} className="acTab" style={{ textDecoration: "none" }}>
+                {p.name} →
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* ── Date range picker ──────────────────────────────── */}
       <div className="acTabBar" style={{ marginBottom: 28 }}>
         {PRESETS.map((p) => (
@@ -72,7 +92,6 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
             days
           </button>
         </span>
-        {loading && <span style={{ fontSize: 11, color: "#6b7280", alignSelf: "center", marginLeft: 8 }}>Loading…</span>}
       </div>
 
       <AircallTabs aircall={data} />

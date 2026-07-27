@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getUser } from "@/lib/supabase/get-user";
 
 const BASE = "https://api2.hiverhq.com";
@@ -32,15 +32,12 @@ async function hAll(basePath: string, key: string, max = 2000): Promise<unknown[
   return results;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const key = process.env.HIVER_API_KEY;
   if (!key) return NextResponse.json({ error: "not configured" }, { status: 500 });
-
-  const createdAfter = req.nextUrl.searchParams.get("created_after");
-  const convSuffix = createdAfter ? `&created_after=${createdAfter}` : "";
 
   try {
     const inboxes = await hAll("v1/inboxes?limit=100", key) as { id: number }[];
@@ -61,8 +58,11 @@ export async function GET(req: NextRequest) {
       (us as { id: number }[]).forEach((u) => { users[u.id] = u; });
       (ts as { id: number }[]).forEach((t) => { tags[t.id] = t; });
 
-      // conversations sequentially (many pages, rate-limit sensitive)
-      const cs = await hAll(`v1/inboxes/${inbox.id}/conversations?limit=100${convSuffix}`, key);
+      // conversations sequentially (many pages, rate-limit sensitive). No
+      // date-filter param — Hiver ignores created_after and every alias
+      // tried on this endpoint; see HIVER_DATE_FILTER_NOTE in
+      // src/app/dashboard/hiver/hiver-shared.ts.
+      const cs = await hAll(`v1/inboxes/${inbox.id}/conversations?limit=100`, key);
       cs.forEach((c) => {
         const conv = c as { _inbox_id: number; status: string };
         conv._inbox_id = inbox.id;
