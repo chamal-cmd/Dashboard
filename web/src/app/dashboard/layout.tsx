@@ -19,10 +19,13 @@ const USER_NAV = [
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  // TEMP-PREVIEW-STUB
+  const user = await getUser();
+  if (!user) redirect("/login");
+  const supabase = await createClient();
+  const { data: profile } = await supabase.from("profiles").select("full_name, email").eq("id", user.id).single();
   return (
     <div className="shell">
-      <Sidebar items={USER_NAV} userName="Chamal" userEmail="chamal@gpbookkeeper.com.au" width={200} />
+      <Sidebar items={USER_NAV} userName={profile?.full_name ?? "User"} userEmail={profile?.email ?? user.email ?? ""} width={200} />
       <main className="shellMain">
         <TopBar />
         {children}
