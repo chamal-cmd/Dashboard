@@ -1,0 +1,55 @@
+/* Pod switcher — nicer pill buttons with lift + accent glow when active,
+   replacing the plain .acTab pills used elsewhere. "Overall" (added
+   2026-08-17) gets a distinct purple accent so it reads as the combined
+   view, not just another pod in the row. */
+.podTabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.podTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.podTab:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.1);
+  border-color: #4a4e7a;
+  color: var(--text-1);
+}
+.podTabDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4f8ef7;
+  flex-shrink: 0;
+}
+.podTabActive,
+.podTabActive:hover {
+  color: #ffffff;
+  background: linear-gradient(135deg, #4f8ef7, #3b82f6);
+  border-color: #3b82f6;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+}
+.podTabActive .podTabDot { background: #ffffff; }
+
+.podTabOverall .podTabDot { background: #a78bfa; }
+.podTabOverall.podTabActive,
+.podTabOverall.podTabActive:hover {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+}
+.podTabOverall.podTabActive .podTabDot { background: #ffffff; }

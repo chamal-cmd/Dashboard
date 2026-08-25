@@ -1,0 +1,47 @@
+.ls-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  gap: 12px;
+}
+.ls-icon {
+  font-size: 48px;
+  background: linear-gradient(135deg, var(--ls-color), color-mix(in srgb, var(--ls-color) 55%, white));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.ls-title {
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--ls-color);
+  letter-spacing: 4px;
+}
+.ls-status { font-size: 13px; color: var(--text-3); }
+.ls-pct { font-size: 56px; font-weight: 900; color: var(--text-1); line-height: 1; }
+.ls-bar-track {
+  width: 280px;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.ls-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ls-color), color-mix(in srgb, var(--ls-color) 55%, white));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+.ls-bar-indeterminate {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, var(--ls-color), color-mix(in srgb, var(--ls-color) 55%, white));
+  border-radius: 3px;
+  animation: ls-slide 1.1s ease-in-out infinite;
+}
+@keyframes ls-slide {
+  0%   { margin-left: -40%; }
+  100% { margin-left: 100%; }
+}

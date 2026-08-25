@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": "scheduled-worker.js",
+	"name": "gp-bookkeeper-ops-hub",
+	"account_id": "6dc61160e2401e7202a2260f7f8b40ad",
+	"compatibility_date": "2026-07-02",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	// Runs the Asana sync directly — see scheduled-worker.js. Two schedules:
+	// the frequent one (chunk=3, reconcile=0) keeps content fresh cheaply;
+	// the twice-hourly one (chunk=2, reconcile=1) is the ONLY thing in this
+	// repo that ever detects tasks deleted in Asana — without it, a deleted
+	// task lingers in asana_tasks forever (found live 2026-08-18: a deleted
+	// "Niroga - ATO Payment Plan" task was still showing as an open overdue
+	// item). Whatever external scheduler used to cover this wasn't configured
+	// anywhere in this repo and isn't something to depend on going forward.
+	"triggers": {
+		"crons": ["*/10 * * * *", "7,37 * * * *"]
+	}
+}

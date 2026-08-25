@@ -1,0 +1,59 @@
+/* Small "?" badge with a pure-CSS hover tooltip — no JS state, works inside
+   any label regardless of that label's own text-transform/letter-spacing. */
+.infoTip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid var(--text-3);
+  color: var(--text-3);
+  font-size: 9px;
+  font-weight: 700;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  margin-left: 5px;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.infoTip:hover,
+.infoTip:focus-visible {
+  border-color: var(--text-3);
+  color: var(--text-3);
+}
+.infoTipBubble {
+  display: none;
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 9px 11px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: normal;
+  width: max-content;
+  max-width: 220px;
+  z-index: 60;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  text-align: left;
+  white-space: normal;
+}
+/* :focus (not just focus-visible) makes the bubble CLICK-toggleable — the
+   badge is tabIndex=0, so clicking focuses it (bubble opens) and clicking
+   anywhere else blurs it (bubble closes). Still hover-openable too. */
+.infoTip:hover .infoTipBubble,
+.infoTip:focus .infoTipBubble,
+.infoTip:focus-visible .infoTipBubble {
+  display: block;
+}

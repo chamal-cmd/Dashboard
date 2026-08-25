@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getUser } from "@/lib/supabase/get-user";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  // This proxies to Hiver with the company API key — without a session
+  // check it would hand company email data to anyone on the internet.
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
   const key = process.env.HIVER_API_KEY;
   if (!key) return NextResponse.json({ error: "not configured" }, { status: 500 });
 
