@@ -9,6 +9,8 @@ import { TrackerList } from "@/components/asana/TrackerList";
 import { NetBadge, PaceBadge, imbalanceLabel } from "@/components/asana/RangeBadges";
 import { InfoTip } from "@/components/InfoTip";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { displayName } from "@/lib/asana-client-map";
+import { LastRefreshed } from "@/components/LastRefreshed";
 import "@/components/info-tip.css";
 
 const RANGE_PRESETS = [
@@ -31,6 +33,7 @@ export default function PodDashboard({
   const [custom, setCustom] = useState("");
   const [loading, setLoading] = useState(false);
   const [pod, setPod] = useState<AsanaPodDetail>(initial);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const load = useCallback(async (nextPodId: string, nextDays: number) => {
     setLoading(true);
@@ -40,6 +43,7 @@ export default function PodDashboard({
       const data = await res.json() as AsanaPodDetail;
       setPod(data);
       setDays(nextDays);
+      setLastRefreshed(new Date());
       if (nextPodId !== pod.podId) router.replace(`/dashboard/asana/pod/${nextPodId}`, { scroll: false });
     } catch { /* keep existing data */ } finally {
       setLoading(false);
@@ -115,6 +119,10 @@ export default function PodDashboard({
             days
           </button>
         </span>
+        <button className="acTab" onClick={() => load(pod.podId, days)} title="Re-fetch the latest data for the current range">
+          ↻ Refresh
+        </button>
+        <LastRefreshed at={lastRefreshed} />
         {loading && <span style={{ fontSize: 11, color: "var(--text-3)", alignSelf: "center", marginLeft: 8 }}>Loading…</span>}
       </div>
 
@@ -202,7 +210,7 @@ export default function PodDashboard({
       <div className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle">Compliance Trackers</div>
+            <div className="dpTableTitle">Compliance Trackers<InfoTip text="This pod's share of every tracker marked active under Admin → Trackers (Fathom, BAS, EOFY, etc.), counting tasks attributed to this pod's members. Expand a row (▾) to see its open tasks by bookkeeper." /></div>
             <div className="dpTableSub">This pod&apos;s share — expand any tracker for its open tasks by bookkeeper</div>
           </div>
         </div>
@@ -210,7 +218,7 @@ export default function PodDashboard({
       </div>
 
       {/* ── By Bookkeeper (member cards) ──────────────────── */}
-      <div className="dpSectionLbl">By Bookkeeper</div>
+      <div className="dpSectionLbl">By Bookkeeper<InfoTip text="One card per pod member. Total is every open task assigned to them; Due Today / Tomorrow / Pending is a strict split of that total (Pending covers everything else — overdue, further out, or no due date — so the four always add up to Total); Completed is within the selected date range." /></div>
       <div className="dpTileGrid" style={{ marginBottom: 32 }}>
         {pod.members.map((m) => (
           <div
@@ -223,9 +231,9 @@ export default function PodDashboard({
                 <div className="dpTileTitle">
                   {m.assigneeId ? (
                     <Link href={`/dashboard/asana/person/${m.assigneeId}`} style={{ color: "var(--text-1)", textDecoration: "none" }}>
-                      {m.name} →
+                      {displayName(m.name)} →
                     </Link>
-                  ) : m.name}
+                  ) : displayName(m.name)}
                 </div>
                 {m.isLeader && <span className="dpBadgeChip dpChipAmber" style={{ marginTop: 4, display: "inline-block" }}>Pod Lead</span>}
               </div>
@@ -260,7 +268,7 @@ export default function PodDashboard({
       <div className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle">Open by Client / Project</div>
+            <div className="dpTableTitle">Open by Client / Project<InfoTip text="This pod's open tasks grouped by the client project they belong to. A live snapshot — not affected by the date range." /></div>
             <div className="dpTableSub">{pod.openByProject.length} projects with open tasks</div>
           </div>
         </div>
@@ -286,7 +294,7 @@ export default function PodDashboard({
       <div className="dpTableWrap" style={{ marginBottom: 28 }} id="section-open">
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle">All Open Tasks</div>
+            <div className="dpTableTitle">All Open Tasks<InfoTip text="Every incomplete task assigned to this pod right now, grouped by bookkeeper. A live snapshot — the date range doesn't affect it. Click a name to see that person's actual task list." /></div>
             <div className="dpTableSub">{openByAssignee.length} member{openByAssignee.length !== 1 ? "s" : ""} · {pod.openTasksSample.length} task{pod.openTasksSample.length !== 1 ? "s" : ""} · click a name for details</div>
           </div>
         </div>
@@ -302,7 +310,7 @@ export default function PodDashboard({
         <div className="dpTableWrap" style={{ marginBottom: 28 }} id="section-overdue">
           <div className="dpTableHead">
             <div>
-              <div className="dpTableTitle" style={{ color: "#f87171" }}>Overdue Tasks</div>
+              <div className="dpTableTitle" style={{ color: "#f87171" }}>Overdue Tasks<InfoTip text="This pod's open tasks whose due date has already passed, grouped by bookkeeper. A live snapshot — not affected by the date range. Click a name for the actual overdue list." /></div>
               <div className="dpTableSub">{overdueByAssignee.length} member{overdueByAssignee.length !== 1 ? "s" : ""} · {pod.overdueTasks.length} task{pod.overdueTasks.length !== 1 ? "s" : ""} · click a name for details</div>
             </div>
           </div>
@@ -315,7 +323,7 @@ export default function PodDashboard({
         <div className="dpTableWrap" style={{ marginBottom: 28 }} id="section-duesoon">
           <div className="dpTableHead">
             <div>
-              <div className="dpTableTitle" style={{ color: "#fbbf24" }}>Due in Next 7 Days</div>
+              <div className="dpTableTitle" style={{ color: "#fbbf24" }}>Due in Next 7 Days<InfoTip text="This pod's open tasks due between today and 7 days out, grouped by bookkeeper — fixed at a week regardless of the date range picker above." /></div>
               <div className="dpTableSub">{dueSoonByAssignee.length} member{dueSoonByAssignee.length !== 1 ? "s" : ""} · {pod.dueSoonTasks.length} task{pod.dueSoonTasks.length !== 1 ? "s" : ""} · click a name for details</div>
             </div>
           </div>
@@ -328,7 +336,7 @@ export default function PodDashboard({
         <div className="dpTableWrap" style={{ marginBottom: 28 }} id="section-completed">
           <div className="dpTableHead">
             <div>
-              <div className="dpTableTitle" style={{ color: "#34d399" }}>Recently Completed</div>
+              <div className="dpTableTitle" style={{ color: "#34d399" }}>Recently Completed<InfoTip text="This pod's tasks marked complete within the selected date range, grouped by bookkeeper." /></div>
               <div className="dpTableSub">{completedByAssignee.length} member{completedByAssignee.length !== 1 ? "s" : ""} · {pod.recentCompletions.length} task{pod.recentCompletions.length !== 1 ? "s" : ""}, {pod.rangeLabel}</div>
             </div>
           </div>
@@ -341,7 +349,7 @@ export default function PodDashboard({
         <div className="dpTableWrap" style={{ marginBottom: 24 }} id="section-modified">
           <div className="dpTableHead">
             <div>
-              <div className="dpTableTitle">Recently Modified</div>
+              <div className="dpTableTitle">Recently Modified<InfoTip text="This pod's open tasks that were touched (edited, commented, re-dated, etc.) in Asana within the selected date range — a proxy for where work is actively happening, even if nothing was completed." /></div>
               <div className="dpTableSub">{modifiedByAssignee.length} member{modifiedByAssignee.length !== 1 ? "s" : ""} · {pod.recentlyModified.length} open task{pod.recentlyModified.length !== 1 ? "s" : ""}, {pod.rangeLabel}</div>
             </div>
           </div>

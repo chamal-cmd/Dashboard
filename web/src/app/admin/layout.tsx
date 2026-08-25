@@ -9,12 +9,12 @@ import "@/components/shell-theme.css";
 export const dynamic = "force-dynamic";
 
 const ADMIN_NAV = [
-  { href: "/admin", label: "Overview" },
-  { href: "/admin/users", label: "Users" },
-  { href: "/admin/pods", label: "Pods" },
-  { href: "/admin/trackers", label: "Asana Trackers" },
-  { href: "/admin/thresholds", label: "Thresholds" },
-  { href: "/admin/settings", label: "Settings" },
+  { href: "/admin", label: "Overview", icon: "🏠" },
+  { href: "/admin/users", label: "Users", icon: "👥" },
+  { href: "/admin/pods", label: "Pods", icon: "🧩" },
+  { href: "/admin/trackers", label: "Asana Trackers", icon: "🗂" },
+  { href: "/admin/thresholds", label: "Thresholds", icon: "🎚" },
+  { href: "/admin/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

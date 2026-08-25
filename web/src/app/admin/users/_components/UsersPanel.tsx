@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "@/lib/supabase/authed-fetch";
 import { ROLES, ROLE_LABELS, ROLE_BADGE_CLASS, STATUS_BADGE_CLASS, type AdminUserView, type Role } from "@/lib/auth/types";
+import { LastRefreshed } from "@/components/LastRefreshed";
 import "../../admin-theme.css";
 
 export default function UsersPanel({ selfId }: { selfId: string }) {
@@ -14,12 +15,14 @@ export default function UsersPanel({ selfId }: { selfId: string }) {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [toastMsg, setToastMsg] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const loadUsers = useCallback(async () => {
     const res = await authedFetch("/api/admin/users");
     if (!res.ok) return;
     setUsers(await res.json());
     setLoaded(true);
+    setLastRefreshed(new Date());
   }, []);
 
   useEffect(() => {
@@ -124,6 +127,7 @@ export default function UsersPanel({ selfId }: { selfId: string }) {
           <div className="shSub">{loaded ? `${users.length} user${users.length !== 1 ? "s" : ""}` : ""}</div>
         </div>
         <button className="backBtn" style={{ fontSize: 11 }} onClick={loadUsers}>↻ Refresh</button>
+        <LastRefreshed at={lastRefreshed} />
       </div>
       <div className="tableWrap">
         <table>

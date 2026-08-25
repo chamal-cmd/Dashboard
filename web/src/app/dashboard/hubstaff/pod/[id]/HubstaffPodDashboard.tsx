@@ -7,6 +7,24 @@ import type { HubstaffOverview } from "@/lib/data/hubstaff";
 import { mean, median, stdDev, round1 } from "@/lib/stats";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { auTodayISODateClient } from "@/lib/business-tz-client";
+import { InfoTip } from "@/components/InfoTip";
+import { LastRefreshed } from "@/components/LastRefreshed";
+import "@/components/info-tip.css";
+
+// Keyed by each KPI tile's `key` above — looked up when rendering so the
+// dynamically-filtered tile arrays don't need their explanation duplicated
+// at every call site.
+const TILE_TIPS: Record<string, string> = {
+  members: "Number of distinct people in this pod with at least some tracked time in the selected date range.",
+  hours: "Total hours logged by this pod's members in the selected date range, across all projects.",
+  activity: "This pod's tracked time divided by active time — hours-weighted across its members, not a simple per-person average.",
+  idle: "Tracked time with no keyboard/mouse activity detected, summed across this pod's members.",
+  median: "The middle value of this pod's member activity % — less skewed by a few outliers than the average above.",
+  stddev: "How much individual activity % varies within this pod. Low means everyone's close to the average; high means some members are far above or below it.",
+  idleratio: "Idle hours as a percentage of this pod's total tracked hours.",
+  totalhours: "Total hours logged by everyone in this pod, in the selected date range.",
+  idle2: "Tracked time with no keyboard/mouse activity detected, summed across this pod's members.",
+};
 
 const PRESETS = [
   { label: "Today",  days: 1  },
@@ -40,6 +58,7 @@ export default function HubstaffPodDashboard({
   const [data, setData] = useState<HubstaffOverview>(initial);
   const [currentPodId, setCurrentPodId] = useState(podId);
   const [currentPodName, setCurrentPodName] = useState(podName);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   // Switching the date range needs a fresh Hubstaff fetch (different day
   // window); switching pods doesn't — the org-wide payload we already have
@@ -52,6 +71,7 @@ export default function HubstaffPodDashboard({
       setData(await res.json() as HubstaffOverview);
       setDays(d);
       setSpecificDate("");
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -70,6 +90,7 @@ export default function HubstaffPodDashboard({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json() as HubstaffOverview);
       setSpecificDate(date);
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -198,6 +219,7 @@ export default function HubstaffPodDashboard({
           />
         </span>
         {loading && <span style={{ fontSize: 11, color: "var(--text-3)", alignSelf: "center", marginLeft: 8 }}>Loading…</span>}
+        <LastRefreshed at={lastRefreshed} />
       </div>
 
       {/* ── Pod KPIs ─────────────────────────────────────── */}
@@ -207,40 +229,40 @@ export default function HubstaffPodDashboard({
           dropped rather than shown as "0h". Headline tiles (member count,
           hours, activity, median/spread) always show even at zero, since a
           zero there IS the signal, not an absence of one. */}
-      <div className="dpSectionLbl">Pod Activity</div>
+      <div className="dpSectionLbl">Pod Activity<InfoTip text="Headline stats for this pod within the selected date range — how many people tracked time, how many hours, and the pod's overall activity level." /></div>
       <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: `repeat(${podActivityTiles.length}, 1fr)` }}>
         {podActivityTiles.map((t) => (
           <div key={t.key} className="dpKpi" style={{ "--kpi-accent": t.color } as React.CSSProperties}>
             <div className="dpKpiVal">{t.display}</div>
-            <div className="dpKpiLbl">{t.lbl}</div>
+            <div className="dpKpiLbl">{t.lbl}{TILE_TIPS[t.key] && <InfoTip text={TILE_TIPS[t.key]} />}</div>
           </div>
         ))}
       </div>
 
       {/* ── Consistency ──────────────────────────────────── */}
-      <div className="dpSectionLbl">Consistency</div>
+      <div className="dpSectionLbl">Consistency<InfoTip text="How evenly activity is spread across this pod's members — median and spread are measured against this pod's own numbers, not the whole org, so a uniformly quieter pod doesn't look 'bad' just for being different from the rest." /></div>
       <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: `repeat(${consistencyTiles.length}, 1fr)` }}>
         {consistencyTiles.map((t) => (
           <div key={t.key} className="dpKpi" style={{ "--kpi-accent": t.color } as React.CSSProperties}>
             <div className="dpKpiVal">{t.display}</div>
-            <div className="dpKpiLbl">{t.lbl}</div>
+            <div className="dpKpiLbl">{t.lbl}{TILE_TIPS[t.key] && <InfoTip text={TILE_TIPS[t.key]} />}</div>
           </div>
         ))}
       </div>
 
       {/* ── Time breakdown ────────────────────────────────── */}
-      <div className="dpSectionLbl">Time breakdown</div>
+      <div className="dpSectionLbl">Time breakdown<InfoTip text="This pod's total tracked hours and idle hours within the selected range." /></div>
       <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: `repeat(${timeBreakdownTiles.length}, 1fr)` }}>
         {timeBreakdownTiles.map((t) => (
           <div key={t.key} className="dpKpi" style={{ "--kpi-accent": t.color } as React.CSSProperties}>
             <div className="dpKpiVal">{t.display}</div>
-            <div className="dpKpiLbl">{t.lbl}</div>
+            <div className="dpKpiLbl">{t.lbl}{TILE_TIPS[t.key] && <InfoTip text={TILE_TIPS[t.key]} />}</div>
           </div>
         ))}
       </div>
 
       {/* ── By Bookkeeper ─────────────────────────────────── */}
-      <div className="dpSectionLbl">By Bookkeeper</div>
+      <div className="dpSectionLbl">By Bookkeeper<InfoTip text="Each member of this pod: tracked hours, activity % and idle hours in the selected range (weekdays only). A red LOW badge marks anyone more than one standard deviation below this pod's own average activity." /></div>
       {podMembers.length === 0 ? (
         <div className="dpTableWrap" style={{ marginBottom: 32 }}>
           <div className="dpEmpty">No tracked time for this pod in this window.</div>

@@ -10,7 +10,7 @@ export async function getPodByEmail(): Promise<Map<string, string>> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("asana_members")
-    .select("email, pods(name)")
+    .select("email, pods!asana_members_pod_id_fkey(name)")
     .not("pod_id", "is", null);
 
   const map = new Map<string, string>();

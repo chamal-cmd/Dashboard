@@ -7,7 +7,7 @@ import "@/components/detail-page-theme.css";
 export const dynamic = "force-dynamic";
 
 export default async function BookkeeperStatsPage() {
-  const stats = await getBookkeeperStats(7);
+  const stats = await getBookkeeperStats();
 
   return (
     <div className="shellPage dpPage">

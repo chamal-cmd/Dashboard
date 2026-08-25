@@ -4,13 +4,14 @@ import Link from "next/link";
 import "../../hiver-dashboard.css";
 import { HIVER_DATE_FILTER_NOTE } from "../../hiver-shared";
 import { useHiverData } from "../../useHiverData";
+import { LastRefreshed } from "@/components/LastRefreshed";
 
 export default function HiverPodDashboard({ podName }: { podName: string }) {
   const {
     users, conversations,
     podByEmail, allPods,
     loading, pct, statusMsg, error, failedInboxes,
-    reload,
+    reload, lastRefreshed,
   } = useHiverData();
 
   if (loading) {
@@ -83,6 +84,7 @@ export default function HiverPodDashboard({ podName }: { podName: string }) {
         </div>
         <div className="hv-header-right">
           <button className="hv-refresh-btn" onClick={reload}>↺ Refresh</button>
+          <LastRefreshed at={lastRefreshed} />
         </div>
       </div>
 

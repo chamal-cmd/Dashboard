@@ -48,7 +48,21 @@ function TrackerItem({ t, days }: { t: TrackerStat; days: number }) {
         <div style={{ width: 60, textAlign: "right", fontSize: 13, color: (t.open ?? 0) > 0 ? "#fb923c" : "#34d399", fontWeight: 700 }}>{t.open ?? "—"}<div style={{ fontSize: 9, color: "var(--text-3)", fontWeight: 400 }}>open</div></div>
         <div style={{ width: 60, textAlign: "right", fontSize: 13, color: "var(--text-3)" }}>{t.total ?? "—"}<div style={{ fontSize: 9, color: "var(--text-3)" }}>total</div></div>
         <div style={{ width: 80, textAlign: "right", fontSize: 13, color: "#34d399" }}>{t.completedInRange ?? "—"}<div style={{ fontSize: 9, color: "var(--text-3)" }}>done · {days}d</div></div>
-        <div style={{ width: 90, textAlign: "right", fontSize: 12, color: "var(--text-3)" }}>{pct != null ? `${pct}%` : "—"}</div>
+        {/* Labelled "of rows" deliberately. This is (total - open) / total over
+            BOARD ROWS, which is a different measure from the report-based
+            completion on the Fathom Report (one client-month = one report).
+            Left unlabelled, the two percentages look like the same number
+            disagreeing with itself. A report-based figure can't be computed
+            here: asana_tasks carries `progress` but not the Months field or the
+            quarter section, so there is no way to know how many client-months a
+            row covers without the live Asana call the Fathom Report makes. */}
+        <div
+          style={{ width: 90, textAlign: "right", fontSize: 12, color: "var(--text-3)" }}
+          title="Share of this tracker's board ROWS that are complete. Not the same as the report-based completion on the Fathom Report, which counts one client-month as one report — a row spanning three months counts once here and three times there."
+        >
+          {pct != null ? `${pct}%` : "—"}
+          <div style={{ fontSize: 9, color: "var(--text-3)" }}>of rows</div>
+        </div>
       </div>
 
       {open && (

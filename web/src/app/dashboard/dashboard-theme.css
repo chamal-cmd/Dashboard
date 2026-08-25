@@ -13,7 +13,14 @@
 @media (max-width: 700px) {
   .hubStatRow { grid-template-columns: repeat(2, 1fr); }
 }
-.hubStat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+.hubStat { display: block; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
+/* Overview stats/pills that link through to the detail page section behind
+   the number — same hover-lift affordance the detail pages' KPI tiles use.
+   Deliberately sets no `display`: this class is applied to both the block
+   .hubStat card and the flex .hubHealthPill, so declaring one here would
+   break whichever layout lost the source-order fight. */
+.hubDrill { color: inherit; text-decoration: none; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.hubDrill:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(17, 24, 39, 0.08); }
 .hubStatVal { font-size: 24px; font-weight: 750; color: var(--text-1); letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
 .hubStatLbl { font-size: 11px; color: var(--text-3); margin-top: 3px; }
 

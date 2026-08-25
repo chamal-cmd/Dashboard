@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AsanaTask } from "@/lib/data/asana";
-import { displayName } from "@/lib/asana-client-map";
+import { displayName, isExcludedBookkeeper } from "@/lib/asana-client-map";
 
 export interface AssigneeCount {
   id: string | null;
@@ -15,6 +15,9 @@ export interface AssigneeCount {
 export function groupByAssignee(tasks: AsanaTask[]): AssigneeCount[] {
   const rows = new Map<string, AssigneeCount>();
   for (const t of tasks) {
+    // Departed/non-bookkeeper accounts are hidden from these breakdowns
+    // (see EXCLUDED_BOOKKEEPERS) — display-level only, data is untouched.
+    if (isExcludedBookkeeper(t.assigneeName, t.assigneeId)) continue;
     const name = t.assigneeName ?? "Unassigned";
     const key = t.assigneeId ?? `name:${name}`;
     const cur = rows.get(key) ?? { id: t.assigneeId, name, count: 0 };

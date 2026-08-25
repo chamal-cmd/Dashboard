@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 import AircallTabs from "./AircallTabs";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { LastRefreshed } from "@/components/LastRefreshed";
 import "./aircall-page.css";
 
 type AircallData = React.ComponentProps<typeof AircallTabs>["aircall"];
@@ -25,6 +25,7 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
   const [custom, setCustom] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AircallData>(initial);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const pickPreset = useCallback(async (d: number) => {
     if (d === days || loading) return;
@@ -36,6 +37,7 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json() as AircallData);
       setDays(d);
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -52,20 +54,6 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
 
   return (
     <>
-      {/* ── Pod quick-switcher ───────────────────────────────── */}
-      {data.allPods.length > 0 && (
-        <>
-          <div className="dpSectionLbl">Jump to Pod</div>
-          <div className="acTabBar" style={{ marginBottom: 24 }}>
-            {data.allPods.map((p) => (
-              <Link key={p.id} href={`/dashboard/aircall/pod/${p.id}`} className="acTab" style={{ textDecoration: "none" }}>
-                {p.name} →
-              </Link>
-            ))}
-          </div>
-        </>
-      )}
-
       {/* ── Date range picker ──────────────────────────────── */}
       <div className="acTabBar" style={{ marginBottom: 28 }}>
         {PRESETS.map((p) => (
@@ -92,9 +80,25 @@ export default function AircallDashboard({ initial }: { initial: AircallData }) 
             days
           </button>
         </span>
+        <LastRefreshed at={lastRefreshed} />
       </div>
 
-      <AircallTabs aircall={data} />
+      {/* Aircall's calls list is paginated 50 at a time and fetched in
+          parallel; if the window exceeds the page cap or a page fails even
+          after retries, every figure below is an UNDERCOUNT. Silently showing
+          low numbers as if they were complete is worse than saying so. */}
+      {data.truncated && (
+        <div
+          className="dpNote"
+          style={{ marginTop: -14, marginBottom: 20, color: "#fb923c" }}
+          title="Aircall returns calls 50 per page. Either this range has more pages than the fetch cap allows, or one page failed after retries."
+        >
+          ⚠ Incomplete data for this range — some calls couldn&apos;t be fetched, so the counts and rates
+          below are lower than reality. Try a shorter range or refresh.
+        </div>
+      )}
+
+      <AircallTabs aircall={data} days={days} />
     </>
   );
 }

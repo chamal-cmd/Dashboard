@@ -3,6 +3,9 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { InfoTip } from "@/components/InfoTip";
+import { LastRefreshed } from "@/components/LastRefreshed";
+import "@/components/info-tip.css";
 
 interface AircallAgentStat {
   email: string; name: string; pod: string | null;
@@ -39,6 +42,7 @@ export default function AircallPodDashboard({
   const [custom, setCustom] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<AircallOverview>(initial);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
   const fetchRange = useCallback(async (d: number) => {
     if (d === days || loading) return;
@@ -48,6 +52,7 @@ export default function AircallPodDashboard({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json() as AircallOverview);
       setDays(d);
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -119,29 +124,30 @@ export default function AircallPodDashboard({
             days
           </button>
         </span>
+        <LastRefreshed at={lastRefreshed} />
       </div>
 
       {/* ── KPIs ─────────────────────────────────────────── */}
       <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
         <div className="dpKpi" style={{ "--kpi-accent": "#34d399" } as React.CSSProperties}>
           <div className="dpKpiVal">{total}</div>
-          <div className="dpKpiLbl">Total calls</div>
+          <div className="dpKpiLbl">Total calls<InfoTip text="All inbound and outbound calls for this pod's agents in the selected date range." /></div>
         </div>
         <div className="dpKpi" style={{ "--kpi-accent": "#4f8ef7" } as React.CSSProperties}>
           <div className="dpKpiVal">{inbound}</div>
-          <div className="dpKpiLbl">Inbound</div>
+          <div className="dpKpiLbl">Inbound<InfoTip text="Calls that came in from a customer, regardless of whether they were answered." /></div>
         </div>
         <div className="dpKpi" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties}>
           <div className="dpKpiVal">{outboundAnswered}</div>
-          <div className="dpKpiLbl">Outbound answered</div>
+          <div className="dpKpiLbl">Outbound answered<InfoTip text="Calls this pod's agents dialed out that the other side picked up." /></div>
         </div>
         <div className="dpKpi" style={{ "--kpi-accent": "#fbbf24" } as React.CSSProperties}>
           <div className="dpKpiVal">{outboundUnanswered}</div>
-          <div className="dpKpiLbl">Outbound unanswered</div>
+          <div className="dpKpiLbl">Outbound unanswered<InfoTip text="Calls this pod's agents dialed out that were not picked up." /></div>
         </div>
         <div className="dpKpi" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties}>
           <div className="dpKpiVal">{missedOrVoicemail}</div>
-          <div className="dpKpiLbl">Missed / voicemail</div>
+          <div className="dpKpiLbl">Missed / voicemail<InfoTip text="Inbound calls that were never answered or went to voicemail." /></div>
         </div>
       </div>
 
@@ -157,7 +163,7 @@ export default function AircallPodDashboard({
           <div className="dpEmpty">No calls in this period.</div>
         ) : (
           <table className="dpTable">
-            <thead><tr><th>Agent</th><th>Total</th><th>Inbound</th><th>Outbound Answered</th><th>Missed / Voicemail</th></tr></thead>
+            <thead><tr><th>Agent</th><th>Total</th><th>Inbound</th><th>Outbound Answered</th><th>Missed / Voicemail<InfoTip text="Inbound calls this agent never answered or that went to voicemail." /></th></tr></thead>
             <tbody>
               {podAgents.map((a) => (
                 <tr key={a.email}>

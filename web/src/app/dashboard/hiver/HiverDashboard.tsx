@@ -9,6 +9,7 @@ import {
   initials,
 } from "./hiver-shared";
 import { useHiverData } from "./useHiverData";
+import { LastRefreshed } from "@/components/LastRefreshed";
 
 function workloadColor(pct: number) {
   if (pct < 30) return "#34d399";
@@ -21,7 +22,7 @@ export default function HiverDashboard() {
     inboxes, users, tags, conversations,
     podByEmail, allPods,
     loading, pct, statusMsg, error, failedInboxes,
-    reload,
+    reload, lastRefreshed,
   } = useHiverData();
   const [currentInbox, setCurrentInbox] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -152,6 +153,7 @@ export default function HiverDashboard() {
             ))}
           </select>
           <button className="hv-refresh-btn" onClick={reload}>↺ Refresh</button>
+          <LastRefreshed at={lastRefreshed} />
         </div>
       </div>
 

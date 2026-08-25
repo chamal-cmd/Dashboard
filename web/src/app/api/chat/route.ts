@@ -173,7 +173,7 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_aircall_overview",
     description:
-      "Get Aircall phone stats: total calls, inbound vs outbound, answer/connect rates, missed calls, calls per day, and SMS/WhatsApp messaging stats (volume, delivery rate). Use for any question about call or message volume, e.g. 'how many calls a day'.",
+      "Get Aircall phone stats: total calls, inbound vs outbound, answer/connect rates, missed calls, calls per day. Use for any question about call volume, e.g. 'how many calls a day'. Aircall's API has no endpoint for message history, so this never returns SMS/WhatsApp data — point the user to Aircall's own analytics for that.",
     input_schema: {
       type: "object",
       properties: {
@@ -302,7 +302,10 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
       };
     }
     case "get_aircall_overview": {
-      const overview = await getAircallOverview(10, clampDays(input.days, 7));
+      // skipContacts: this digest returns counts, rates and durations only —
+      // no contact names — so resolving one Aircall contact per unique phone
+      // number in the window was pure latency on every chatbot answer.
+      const overview = await getAircallOverview(10, clampDays(input.days, 7), { skipContacts: true });
       if (overview.error) return { error: overview.error };
       return {
         total: overview.total,
@@ -317,16 +320,7 @@ async function runTool(name: string, input: Record<string, unknown>): Promise<un
         outboundConnectRatePct: overview.outboundConnectRatePct,
         missedRatePct: overview.missedRatePct,
         lines: overview.lines,
-        messaging: overview.messaging
-          ? {
-              total: overview.messaging.total,
-              inbound: overview.messaging.inbound,
-              outbound: overview.messaging.outbound,
-              delivered: overview.messaging.delivered,
-              failed: overview.messaging.failed,
-              deliveryRatePct: overview.messaging.deliveryRatePct,
-            }
-          : { note: "No local messaging data yet — point the user to Aircall's own analytics instead.", analyticsUrl: AIRCALL_MESSAGING_ANALYTICS_URL },
+        messaging: { note: "Aircall's API has no endpoint for message history — point the user to Aircall's own analytics instead.", analyticsUrl: AIRCALL_MESSAGING_ANALYTICS_URL },
       };
     }
     case "get_hiver_overview": {
@@ -349,7 +343,7 @@ Rules:
 - If a pod or person name doesn't resolve, say so and ask for the correct name rather than guessing which one was meant.
 - If get_asana_pod_detail or get_asana_person_detail returns an object with "ambiguous": true, that name matches more than one real record (e.g. two bookkeepers with the same last name) — do NOT pick one and answer. List the candidate names from "matches" and ask the user which one they meant.
 - Hiver data is limited to a live org-wide unresolved count — you cannot break it down by inbox. If asked for an inbox-level Hiver breakdown, say so and point to the Hiver dashboard page.
-- If get_aircall_overview's messaging field comes back as a "note" object instead of real numbers, there's no local messaging data yet — tell the user that and share the analyticsUrl it gives you as the place to check message volume instead.`;
+- get_aircall_overview's messaging field is always a "note" pointing to Aircall's own analytics (analyticsUrl) — Aircall's API has no endpoint for message history, so for any message-volume question, say that and share the link instead.`;
 
 export async function POST(req: NextRequest) {
   const user = await getUser();

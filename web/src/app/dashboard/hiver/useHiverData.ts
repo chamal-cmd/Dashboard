@@ -33,6 +33,7 @@ export function useHiverData() {
   const [failedInboxes, setFailedInboxes] = useState<string[]>([]);
   const [podByEmail, setPodByEmail] = useState<Record<string, string>>({});
   const [allPods, setAllPods] = useState<PodRef[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const loadRef = useRef(0);
 
   // Pod membership is independent of anything Hiver returns, so this loads
@@ -132,6 +133,7 @@ export function useHiverData() {
       setFailedInboxes(failed.map((i) => i.display_name));
       setStatusMsg("Done");
       setPct(100);
+      setLastRefreshed(new Date());
     } catch (e) {
       if (token !== loadRef.current) return;
       setError((e as Error).message);
@@ -151,5 +153,6 @@ export function useHiverData() {
     podByEmail, allPods,
     loading, pct, statusMsg, error, failedInboxes,
     reload: () => loadAll(),
+    lastRefreshed,
   };
 }

@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 async function getPods() {
   const admin = createAdminClient();
   const [podsRes, membersRes] = await Promise.all([
-    admin.from("pods").select("id, name, color").order("name"),
-    admin.from("asana_members").select("id, email, pod_id").not("pod_id", "is", null),
+    admin.from("pods").select("id, name, color, leader_member_id").order("name"),
+    admin.from("asana_members").select("id, name, email, pod_id").not("pod_id", "is", null),
   ]);
   return (podsRes.data ?? []).map((p) => ({
     ...p,

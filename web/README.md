@@ -86,6 +86,12 @@ npx opennextjs-cloudflare build
 CLOUDFLARE_API_TOKEN=<token> npx wrangler deploy
 ```
 
-Secrets already pushed to the Worker (via `wrangler secret put`): `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `HUBSTAFF_REFRESH_TOKEN`, `HIVER_API_KEY`, `AIRCALL_API_ID`, `AIRCALL_API_TOKEN`, `RESEND_FROM`. `RESEND_API_KEY` was never set (still pending a Resend account) — invite emails log their link to `wrangler tail` instead of sending. Re-run `wrangler secret put <NAME>` (reads the value from stdin) to update any of these.
+Secrets on the Worker, verified against `wrangler secret list` on 2026-08-07 (this list had drifted — treat the command, not this file, as the source of truth):
+
+`AIRCALL_API_ID`, `AIRCALL_API_TOKEN`, `AIRCALL_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `ASANA_ACCESS_TOKEN`, `HIVER_API_KEY`, `HUBSTAFF_REFRESH_TOKEN`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `RESEND_FROM`, `SUPABASE_SERVICE_ROLE_KEY`, `SYNC_SECRET`.
+
+`RESEND_API_KEY` is still the only one missing (pending a Resend account) — invite emails log their link to `wrangler tail` instead of sending. Re-run `wrangler secret put <NAME>` (reads the value from stdin) to update any of these.
+
+Note that `CLOUDFLARE_API_TOKEN` lives in `.env.local` only; it authenticates the deploy itself and must NOT be pushed as a Worker secret.
 
 Supabase's Auth → URL Configuration `uri_allow_list` already includes this Worker's URL alongside localhost, so OAuth/invite redirects work in both environments.

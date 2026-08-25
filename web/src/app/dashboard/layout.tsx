@@ -8,14 +8,14 @@ import "@/components/shell-theme.css";
 export const dynamic = "force-dynamic";
 
 const USER_NAV = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard/asana", label: "Asana" },
-  { href: "/dashboard/aircall", label: "Aircall" },
+  { href: "/dashboard", label: "Overview", icon: "🏠" },
+  { href: "/dashboard/asana", label: "Asana", icon: "📋" },
+  { href: "/dashboard/aircall", label: "Aircall", icon: "☎" },
   // Hiver is hidden from the nav for now (on request). The pages still exist
   // at /dashboard/hiver — add this entry back to re-expose them.
-  { href: "/dashboard/hubstaff", label: "Hubstaff" },
-  { href: "/dashboard/bookkeepers", label: "Bookkeeper Stats" },
-  { href: "/dashboard/settings", label: "Settings" },
+  { href: "/dashboard/hubstaff", label: "Hubstaff", icon: "⏱" },
+  { href: "/dashboard/bookkeepers", label: "Bookkeeper Stats", icon: "📊" },
+  { href: "/dashboard/settings", label: "Settings", icon: "⚙" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

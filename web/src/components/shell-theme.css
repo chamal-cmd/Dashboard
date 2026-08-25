@@ -15,18 +15,34 @@
   position: sticky;
   top: 0;
   height: 100vh;
+  transition: width 0.18s ease, padding 0.18s ease;
 }
-.sidebarLogo { display: flex; align-items: center; gap: 10px; padding: 0 6px; margin-bottom: 28px; }
+.sidebarCollapsed { padding: 20px 8px; }
+.sidebarLogo { display: flex; align-items: center; gap: 10px; padding: 0 6px; margin-bottom: 16px; }
+.sidebarCollapsed .sidebarLogo { justify-content: center; padding: 0; }
 .sidebarLogoIcon {
   width: 32px; height: 32px;
   background: linear-gradient(135deg, #4f8ef7, #a78bfa);
   border-radius: 8px; display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: 800; color: #fff; flex-shrink: 0;
 }
+.sidebarLogoTextWrap { flex: 1; min-width: 0; }
 .sidebarLogoText { font-size: 14px; font-weight: 700; color: var(--text-1); line-height: 1.3; }
 .sidebarLogoSub { font-size: 10px; color: var(--text-3); }
 
-.sidebarNav { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.sidebarToggle {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text-3);
+  padding: 6px 0; border-radius: 7px; font-size: 11px; font-weight: 600;
+  cursor: pointer; margin-bottom: 16px; transition: color 0.15s, border-color 0.15s;
+}
+.sidebarToggle:hover { color: #4f8ef7; border-color: #4f8ef7; }
+
+/* No flex:1 here on purpose (removed on request) — that made the nav expand
+   to fill the full 100vh sidebar, pushing the user/sign-out footer all the
+   way to the bottom with a large dead gap above it on any screen taller than
+   the nav itself. Without it, the footer sits right after the last link. */
+.sidebarNav { display: flex; flex-direction: column; gap: 3px; }
 .sidebarLink {
   display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px;
   font-size: 13px; font-weight: 500; color: var(--text-3); text-decoration: none; transition: all 0.15s;
@@ -34,16 +50,27 @@
 .sidebarLink:hover { background: rgba(0, 0, 0, 0.04); color: var(--text-1); }
 .sidebarLinkActive { background: rgba(79,142,247,0.13); color: #4f8ef7; }
 .sidebarLinkActive:hover { background: rgba(79,142,247,0.13); color: #4f8ef7; }
+.sidebarLinkIcon { width: 18px; flex-shrink: 0; text-align: center; font-size: 14px; }
+.sidebarLinkText { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sidebarCollapsed .sidebarLink { justify-content: center; padding: 10px 0; }
 
 .sidebarFooter { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 14px; }
+.sidebarCollapsed .sidebarFooter { display: flex; flex-direction: column; align-items: center; }
 .sidebarUser { padding: 0 4px; margin-bottom: 10px; }
 .sidebarUserName { font-size: 13px; font-weight: 600; color: var(--text-1); }
 .sidebarUserEmail { font-size: 11px; color: var(--text-3); margin-top: 1px; overflow-wrap: anywhere; }
+.sidebarUserAvatar {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(79,142,247,0.15); color: #4f8ef7;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; margin-bottom: 10px;
+}
 .sidebarSignOut {
   width: 100%; background: transparent; border: 1px solid var(--border); color: var(--text-3);
   padding: 7px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: border-color 0.15s;
 }
 .sidebarSignOut:hover { border-color: #f87171; color: #f87171; }
+.sidebarCollapsed .sidebarSignOut { width: 30px; height: 30px; padding: 0; font-size: 14px; }
 
 .shellMain { flex: 1; min-width: 0; overflow-y: auto; }
 .shellPage { max-width: 1100px; margin: 0 auto; padding: 36px 32px 64px; }

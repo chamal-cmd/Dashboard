@@ -13,6 +13,7 @@ import {
   initials,
   hiverFetch,
 } from "../../hiver-shared";
+import { LastRefreshed } from "@/components/LastRefreshed";
 
 export default function InboxDashboard({ inboxId }: { inboxId: string }) {
   const [inbox, setInbox] = useState<Inbox | null>(null);
@@ -23,6 +24,7 @@ export default function InboxDashboard({ inboxId }: { inboxId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const loadRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -52,6 +54,7 @@ export default function InboxDashboard({ inboxId }: { inboxId: string }) {
       setUsers(d.users);
       setTags(d.tags);
       setConversations(d.conversations);
+      setLastRefreshed(new Date());
     } catch (e) {
       if (token !== loadRef.current) return;
       setError((e as Error).message);
@@ -137,6 +140,7 @@ export default function InboxDashboard({ inboxId }: { inboxId: string }) {
         </div>
         <div className="hv-header-right">
           <button className="hv-refresh-btn" onClick={() => load()}>↺ Refresh</button>
+          <LastRefreshed at={lastRefreshed} />
         </div>
       </div>
 

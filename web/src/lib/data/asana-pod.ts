@@ -158,15 +158,6 @@ async function fetchAllOpenTaskRows(
   return rows;
 }
 
-// Asana assignee gids for each pod's leader — there are only 3 pods and
-// leadership rarely changes, so this is a plain lookup rather than a DB
-// column. Sourced from the asana_members rows for these 3 people.
-const POD_LEADER_ASSIGNEE_ID: Record<string, string> = {
-  "11111111-0000-0000-0000-000000000001": "1210349338917131", // Ridmal Perera — MAS Legato
-  "11111111-0000-0000-0000-000000000002": "1209494398419726", // Mahesh Kumara — Jemajo
-  "11111111-0000-0000-0000-000000000003": "1202977088659803", // Jobelle Abano — Philippines
-};
-
 export interface PodMemberStat {
   assigneeId: string | null;
   name: string;
@@ -235,7 +226,7 @@ export async function getAsanaPodDetail(podId: string, days = 7): Promise<AsanaP
     const rangeStartDate = rangeStart.slice(0, 10);
     const prevRangeStart = new Date(Date.now() - 2 * days * DAY_MS).toISOString();
 
-    const { data: pod } = await admin.from("pods").select("name").eq("id", podId).maybeSingle();
+    const { data: pod } = await admin.from("pods").select("name, leader_member_id").eq("id", podId).maybeSingle();
     if (!pod) return null;
 
     const [
@@ -303,7 +294,7 @@ export async function getAsanaPodDetail(podId: string, days = 7): Promise<AsanaP
       if (r.due_on === tomorrow) cur.tomorrow += 1;
       memberAgg.set(key, cur);
     }
-    const leaderAssigneeId = POD_LEADER_ASSIGNEE_ID[podId];
+    const leaderAssigneeId = pod.leader_member_id as string | null;
     const members: PodMemberStat[] = Array.from(memberAgg.entries())
       .map(([key, v]) => ({
         assigneeId: key === "unassigned" ? null : key,

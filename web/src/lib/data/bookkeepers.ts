@@ -1,25 +1,38 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAsanaOverview, getAsanaWeeklyCompletions } from "./asana";
+import { getAsanaWeeklyCompletions, getClientProjectBreakdown } from "./asana";
 import { getHubstaffOverview, getHubstaffWeeklyTrend } from "./hubstaff";
 import { getAllPods } from "./pods";
 import { auTodayISODate } from "@/lib/business-tz";
 import { lastNWeekMondays } from "@/lib/iso-week";
+
+export interface BookkeeperClientProjectStat {
+  project: string;
+  due: number;      // pending tasks whose due date has passed
+  upcoming: number;  // pending tasks not yet due, or with no due date
+  // Overdue-age breakdown of `due` above — always sums back to it (request
+  // 2026-08-19: Bookkeeper Stats' due bar chart now buckets by age, same as
+  // Bookkeeper Projects). Passed straight through from getClientProjectBreakdown.
+  due0to2: number;
+  due3to7: number;
+  due8to14: number;
+  due15plus: number;
+}
 
 export interface BookkeeperRow {
   id: string; // asana_members.id (asana gid) — used to link to the existing per-person Asana page
   name: string;
   email: string;
   pod: string | null;
-  asanaOpen: number | null;
-  asanaOverdue: number | null;
-  hubstaffHours: number | null;
-  hubstaffActivityPct: number | null;
+  clientProjects: BookkeeperClientProjectStat[]; // same whole-project ownership as Bookkeeper Projects
+  hubstaffHoursToday: number | null;
+  hubstaffActivityPctToday: number | null;
 }
 
 export interface BookkeeperStatsResult {
   bookkeepers: BookkeeperRow[];
   pods: { id: string; name: string }[];
+  asOfISO: string; // AU business date this snapshot reflects — due/upcoming and "today" are both relative to this
   errors: { asana?: string; hubstaff?: string };
 }
 
@@ -29,19 +42,26 @@ export interface BookkeeperStatsResult {
 // HiverDashboard does client-side (see useHiverData), which would either
 // block this page for a minute or risk the Worker's own execution limit.
 // The page component fetches Hiver counts itself, client-side, once loaded.
-export async function getBookkeeperStats(days = 7): Promise<BookkeeperStatsResult> {
+//
+// Rebuilt 2026-08-13 on request to merge Asana and Hubstaff per bookkeeper:
+// client-project due/upcoming counts replace the old org-wide open/overdue
+// totals (getClientProjectBreakdown is the same whole-project-ownership model
+// Bookkeeper Projects uses, so a client's due/upcoming here always matches
+// what that section shows), and Hubstaff is pinned to today specifically
+// (not a configurable trailing window) per explicit request.
+export async function getBookkeeperStats(): Promise<BookkeeperStatsResult> {
   const admin = createAdminClient();
-  const [{ data: members }, allPods, asana, hubstaff] = await Promise.all([
-    admin.from("asana_members").select("id, name, email, pods(name)"),
+  const [{ data: members }, allPods, clientProjects, hubstaff] = await Promise.all([
+    admin.from("asana_members").select("id, name, email, pods!asana_members_pod_id_fkey(name)"),
     getAllPods(),
-    getAsanaOverview(days),
-    getHubstaffOverview(days, 1),
+    getClientProjectBreakdown(),
+    getHubstaffOverview(1, 1),
   ]);
 
-  const asanaOk = !asana.error;
+  const asanaOk = !clientProjects.error;
   const hubstaffOk = !hubstaff.error;
 
-  const asanaByAssignee = new Map(asana.byAssignee.map((a) => [a.id, a]));
+  const projectsByAssignee = new Map(clientProjects.rows.map((r) => [r.assigneeId, r.projects]));
   const hubstaffByEmail = new Map(hubstaff.members.map((m) => [m.email.toLowerCase(), m]));
 
   const bookkeepers: BookkeeperRow[] = (members ?? [])
@@ -49,17 +69,15 @@ export async function getBookkeeperStats(days = 7): Promise<BookkeeperStatsResul
       const id = m.id as string;
       const email = ((m.email as string) ?? "").toLowerCase();
       const pod = (m as unknown as { pods: { name: string } | null }).pods?.name ?? null;
-      const asanaStat = asanaByAssignee.get(id);
       const hubStat = hubstaffByEmail.get(email);
       return {
         id,
         name: m.name as string,
         email,
         pod,
-        asanaOpen: asanaOk ? (asanaStat?.open ?? 0) : null,
-        asanaOverdue: asanaOk ? (asanaStat?.overdue ?? 0) : null,
-        hubstaffHours: hubstaffOk ? (hubStat?.hours ?? 0) : null,
-        hubstaffActivityPct: hubstaffOk ? (hubStat?.activityPct ?? null) : null,
+        clientProjects: asanaOk ? (projectsByAssignee.get(id) ?? []) : [],
+        hubstaffHoursToday: hubstaffOk ? (hubStat?.hours ?? 0) : null,
+        hubstaffActivityPctToday: hubstaffOk ? (hubStat?.activityPct ?? null) : null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -67,8 +85,9 @@ export async function getBookkeeperStats(days = 7): Promise<BookkeeperStatsResul
   return {
     bookkeepers,
     pods: allPods,
+    asOfISO: auTodayISODate(),
     errors: {
-      asana: asana.error,
+      asana: clientProjects.error,
       hubstaff: hubstaff.error,
     },
   };

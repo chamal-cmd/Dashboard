@@ -7,12 +7,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = await params;
-  const { name, color } = await req.json();
+  const { name, color, leader_member_id } = await req.json();
   const admin = createAdminClient();
-  const update: Record<string, string> = {};
+  const update: Record<string, string | null> = {};
   if (name?.trim()) update.name = name.trim();
   if (color) update.color = color;
-  const { data, error } = await admin.from("pods").update(update).eq("id", id).select("id, name, color").single();
+  // Explicit null clears the leader (distinct from the key being absent,
+  // which leaves it untouched) — the pod picker's "No leader" option sends null.
+  if (leader_member_id !== undefined) update.leader_member_id = leader_member_id;
+  const { data, error } = await admin.from("pods").update(update).eq("id", id).select("id, name, color, leader_member_id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }

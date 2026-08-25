@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { displayName } from "@/lib/asana-client-map";
+import { displayName, isExcludedBookkeeper } from "@/lib/asana-client-map";
 import { useRouter } from "next/navigation";
 import "./global-search.css";
 
@@ -25,6 +25,7 @@ const PAGES: PageLink[] = [
   { href: "/dashboard/asana", label: "Asana" },
   { href: "/dashboard/aircall", label: "Aircall" },
   { href: "/dashboard/hubstaff", label: "Hubstaff" },
+  { href: "/dashboard/fathom-tracker", label: "Fathom Tracker" },
   // Hiver page shortcuts hidden for now, matching the sidebar nav.
   { href: "/dashboard/settings", label: "Settings" },
 ];
@@ -65,7 +66,7 @@ export default function GlobalSearch() {
   const q = query.trim().toLowerCase();
   const matchedPages = q ? PAGES.filter((p) => p.label.toLowerCase().includes(q)) : PAGES;
   const matchedPods = q && index ? index.pods.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5) : [];
-  const matchedPeople = q && index ? index.people.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 8) : [];
+  const matchedPeople = q && index ? index.people.filter((p) => !isExcludedBookkeeper(p.name, p.id) && p.name.toLowerCase().includes(q)).slice(0, 8) : [];
   const hasResults = matchedPages.length > 0 || matchedPods.length > 0 || matchedPeople.length > 0;
 
   function go(href: string) {

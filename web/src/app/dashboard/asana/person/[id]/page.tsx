@@ -4,6 +4,7 @@ import { getUser } from "@/lib/supabase/get-user";
 import { getAsanaPersonDetail } from "@/lib/data/asana-person";
 import { TaskRow } from "@/components/asana/TaskRow";
 import { InfoTip } from "@/components/InfoTip";
+import { RefreshButton } from "@/components/RefreshButton";
 import { displayName } from "@/lib/asana-client-map";
 import "@/components/detail-page-theme.css";
 import "@/components/info-tip.css";
@@ -31,16 +32,19 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
           <div className="dpTitle">{displayName(person.name)}</div>
           <div className="dpSub">{person.podName ?? "No pod"} · Asana workload</div>
         </div>
-        <span className="dpBadge dpBadgeLive">Live</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <RefreshButton />
+          <span className="dpBadge dpBadgeLive">Live</span>
+        </div>
       </div>
 
       {/* ── Workload KPIs ─────────────────────────────────── */}
       <div className="dpSectionLbl">Workload</div>
       <div className="dpKpiGrid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-        <a href="#section-open" className="dpKpi" style={{ "--kpi-accent": "#4f8ef7", textDecoration: "none", color: "inherit" } as React.CSSProperties}>
+        <div className="dpKpi" style={{ "--kpi-accent": "#4f8ef7" } as React.CSSProperties}>
           <div className="dpKpiVal">{person.open}</div>
           <div className="dpKpiLbl">Open tasks<InfoTip text="Every incomplete task currently assigned to this person — a live count." /></div>
-        </a>
+        </div>
         <a href="#section-overdue" className="dpKpi" style={{ "--kpi-accent": "#f87171", textDecoration: "none", color: "inherit" } as React.CSSProperties}>
           <div className="dpKpiVal">{person.overdue}</div>
           <div className="dpKpiLbl">Overdue<InfoTip text="This person's open tasks whose due date has already passed." /></div>
@@ -71,7 +75,7 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
       <div className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle">Open by Client / Project</div>
+            <div className="dpTableTitle">Open by Client / Project<InfoTip text="This person's open tasks grouped by the client project they belong to. A live snapshot — not affected by anything else on this page." /></div>
             <div className="dpTableSub">{person.openByProject.length} projects with open tasks</div>
           </div>
         </div>
@@ -93,29 +97,11 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      {/* ── All open tasks (flat) ─────────────────────────── */}
-      <div id="section-open" className="dpTableWrap" style={{ marginBottom: 28 }}>
-        <div className="dpTableHead">
-          <div>
-            <div className="dpTableTitle">All Open Tasks</div>
-            <div className="dpTableSub">Every incomplete task assigned to this person — {person.openTasks.length} total</div>
-          </div>
-        </div>
-        {person.openTasks.length === 0 ? (
-          <div className="dpEmpty">No open tasks.</div>
-        ) : (
-          <table className="dpTable">
-            <thead><tr><th>Task</th><th>Due</th><th>Project</th></tr></thead>
-            <tbody>{person.openTasks.map((t) => <TaskRow key={t.id} task={t} showAssignee={false} />)}</tbody>
-          </table>
-        )}
-      </div>
-
       {/* ── Overdue ───────────────────────────────────────── */}
       <div id="section-overdue" className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle" style={{ color: "#f87171" }}>Overdue Tasks</div>
+            <div className="dpTableTitle" style={{ color: "#f87171" }}>Overdue Tasks<InfoTip text="This person's open tasks whose due date has already passed, oldest first." /></div>
             <div className="dpTableSub">Oldest first — {person.overdueTasks.length} total</div>
           </div>
         </div>
@@ -133,7 +119,7 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
       <div id="section-duesoon" className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle" style={{ color: "#fbbf24" }}>Due in Next 7 Days</div>
+            <div className="dpTableTitle" style={{ color: "#fbbf24" }}>Due in Next 7 Days<InfoTip text="This person's open tasks due between today and 7 days out, earliest first." /></div>
             <div className="dpTableSub">Earliest first — {person.dueSoonTasks.length} total</div>
           </div>
         </div>
@@ -151,7 +137,7 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
       <div id="section-completed" className="dpTableWrap" style={{ marginBottom: 28 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle" style={{ color: "#34d399" }}>Recently Completed</div>
+            <div className="dpTableTitle" style={{ color: "#34d399" }}>Recently Completed<InfoTip text="Tasks this person marked complete in the last 30 days, most recent first." /></div>
             <div className="dpTableSub">Last 30 days — {person.recentCompletions.length} total</div>
           </div>
         </div>
@@ -169,7 +155,7 @@ export default async function AsanaPersonPage({ params }: { params: Promise<{ id
       <div id="section-modified" className="dpTableWrap" style={{ marginBottom: 24 }}>
         <div className="dpTableHead">
           <div>
-            <div className="dpTableTitle">Recently Modified</div>
+            <div className="dpTableTitle">Recently Modified<InfoTip text="This person's open tasks that were touched (edited, commented, re-dated, etc.) in Asana within the last 30 days — a proxy for where they're actively working, even if nothing was completed." /></div>
             <div className="dpTableSub">Open tasks, last 30 days — most recently updated first — {person.recentlyModified.length} total</div>
           </div>
         </div>

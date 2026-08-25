@@ -9,6 +9,7 @@ import {
   type HiverConversation as Conversation,
   HIVER_DATE_FILTER_NOTE,
 } from "../hiver-shared";
+import { LastRefreshed } from "@/components/LastRefreshed";
 
 export default function UnactionedDashboard() {
   const [inboxes, setInboxes] = useState<Inbox[]>([]);
@@ -19,6 +20,7 @@ export default function UnactionedDashboard() {
   const [pct, setPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [failedInboxes, setFailedInboxes] = useState<string[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const loadRef = useRef(0);
 
   // "Unactioned" = still open or pending (not closed) — status is data we
@@ -75,6 +77,7 @@ export default function UnactionedDashboard() {
       setFailedInboxes(failed);
       setStatusMsg("Done");
       setPct(100);
+      setLastRefreshed(new Date());
     } catch (e) {
       if (token !== loadRef.current) return;
       setError((e as Error).message);
@@ -136,6 +139,7 @@ export default function UnactionedDashboard() {
         </div>
         <div className="hv-header-right">
           <button className="hv-refresh-btn" onClick={() => load()}>↺ Refresh</button>
+          <LastRefreshed at={lastRefreshed} />
         </div>
       </div>
 

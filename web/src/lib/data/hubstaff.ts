@@ -206,6 +206,12 @@ function isWeekday(dateStr: string): boolean {
   return dow !== 0 && dow !== 6;
 }
 
+function addDaysToISO(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 // Hubstaff caps /activities/daily at ~100 entries per page by default and
 // silently stops there unless you both raise page_limit and follow
 // pagination.next_page_start_id yourself — without this, any window with
@@ -213,33 +219,48 @@ function isWeekday(dateStr: string): boolean {
 // undercounts hours (confirmed live: 316h shown vs 651h actual for a 7-day
 // window) and specifically drops the most recent days, since Hubstaff
 // returns pages oldest-first.
+//
+// Separately, Hubstaff hard-rejects any SINGLE request spanning more than 31
+// days (confirmed live 2026-08-13: error_code 11000, "Date range can not be
+// more than 31 days") — callers routinely ask for wider windows than that
+// (a full quarter in the period comparison chart, 8-16 weeks of bookkeeper
+// trend data), so the requested range is split into <=31-day chunks here,
+// transparently to every caller, instead of pushing that limit onto each
+// call site (which is what caused the 400s: getHubstaffWeeklyTrend's default
+// 8-week window is 56 days, already past the cap).
 async function fetchAllDailyActivities(
   token: string,
   startDate: string,
   endDate: string
 ): Promise<{ ok: boolean; status: number; entries: DailyActivityEntry[] }> {
   const entries: DailyActivityEntry[] = [];
-  let pageStartId: string | number | undefined;
-  let lastStatus = 200;
-  for (;;) {
-    const url = new URL(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/activities/daily`);
-    url.searchParams.set("date[start]", startDate);
-    url.searchParams.set("date[stop]", endDate);
-    url.searchParams.set("page_limit", "500");
-    if (pageStartId !== undefined) url.searchParams.set("page_start_id", String(pageStartId));
+  let chunkStart = startDate;
+  while (chunkStart <= endDate) {
+    const maxChunkEnd = addDaysToISO(chunkStart, 30);
+    const chunkEnd = maxChunkEnd < endDate ? maxChunkEnd : endDate;
 
-    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
-    lastStatus = res.status;
-    if (!res.ok) return { ok: false, status: res.status, entries };
+    let pageStartId: string | number | undefined;
+    for (;;) {
+      const url = new URL(`https://api.hubstaff.com/v2/organizations/${ORG_ID}/activities/daily`);
+      url.searchParams.set("date[start]", chunkStart);
+      url.searchParams.set("date[stop]", chunkEnd);
+      url.searchParams.set("page_limit", "500");
+      if (pageStartId !== undefined) url.searchParams.set("page_start_id", String(pageStartId));
 
-    const data = await res.json();
-    entries.push(...((data.daily_activities ?? []) as DailyActivityEntry[]));
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return { ok: false, status: res.status, entries };
 
-    const nextPageStartId = data.pagination?.next_page_start_id;
-    if (!nextPageStartId) break;
-    pageStartId = nextPageStartId;
+      const data = await res.json();
+      entries.push(...((data.daily_activities ?? []) as DailyActivityEntry[]));
+
+      const nextPageStartId = data.pagination?.next_page_start_id;
+      if (!nextPageStartId) break;
+      pageStartId = nextPageStartId;
+    }
+
+    chunkStart = addDaysToISO(chunkEnd, 1);
   }
-  return { ok: true, status: lastStatus, entries };
+  return { ok: true, status: 200, entries };
 }
 
 // `days` = 1 for "today" (compact card), larger for the dedicated page's

@@ -44,3 +44,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Disposable verification scripts (read live keys from .env.local at runtime)
+.scratch-*
+
+# Accidental output dumps from a mangled Windows path redirect — these hold
+# real staff emails and Hiver conversation data, so they must never be committed.
+UsersLegato*.json

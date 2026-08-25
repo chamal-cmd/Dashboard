@@ -4,8 +4,8 @@ import { useState, useCallback } from "react";
 import { authedFetch } from "@/lib/supabase/authed-fetch";
 import "../admin-theme.css";
 
-interface Member { id: string; email: string; pod_id: string }
-interface Pod { id: string; name: string; color: string | null; members: Member[] }
+interface Member { id: string; name: string; email: string; pod_id: string }
+interface Pod { id: string; name: string; color: string | null; leader_member_id: string | null; members: Member[] }
 
 export default function PodsAdmin({ initial }: { initial: Pod[] }) {
   const [pods, setPods] = useState<Pod[]>(initial);
@@ -77,6 +77,17 @@ export default function PodsAdmin({ initial }: { initial: Pod[] }) {
     setSaving(null);
   }
 
+  async function setLeader(pod: Pod, leaderMemberId: string) {
+    setSaving(pod.id + "-leader");
+    const res = await authedFetch(`/api/admin/pods/${pod.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ leader_member_id: leaderMemberId || null }),
+    });
+    if (res.ok) await refresh();
+    else setError((await res.json()).error);
+    setSaving(null);
+  }
+
   return (
     <div>
       {error && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12, padding: "8px 12px", background: "#f8717115", borderRadius: 6 }}>{error}</div>}
@@ -102,6 +113,22 @@ export default function PodsAdmin({ initial }: { initial: Pod[] }) {
             >
               Delete pod
             </button>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0" }}>
+            <span style={{ fontSize: 11, color: "var(--text-3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em" }}>Leader</span>
+            <select
+              className="adminInput adminInputSm"
+              style={{ width: 240 }}
+              value={pod.leader_member_id ?? ""}
+              onChange={(e) => setLeader(pod, e.target.value)}
+              disabled={saving === pod.id + "-leader" || pod.members.length === 0}
+            >
+              <option value="">No leader</option>
+              {pod.members.map((m) => (
+                <option key={m.id} value={m.id}>{m.name || m.email}</option>
+              ))}
+            </select>
           </div>
 
           {pod.members.length > 0 && (

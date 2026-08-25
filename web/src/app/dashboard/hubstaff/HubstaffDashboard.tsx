@@ -11,6 +11,7 @@ import { RankedBarChart } from "@/components/RankedBarChart";
 import { LeaveCalendar } from "@/components/hubstaff/LeaveCalendar";
 import { ControlPanelShell } from "@/components/ControlPanelShell";
 import { auTodayISODateClient } from "@/lib/business-tz-client";
+import { LastRefreshed } from "@/components/LastRefreshed";
 import "@/components/info-tip.css";
 
 const PRESETS = [
@@ -22,6 +23,78 @@ const PRESETS = [
 
 // Hubstaff's own API hard-rejects date ranges over 31 days.
 const MAX_DAYS = 31;
+
+type HubMember = HubstaffOverview["members"][number];
+
+// Which per-member column a KPI tile drills into, and how to rank people by
+// it. Every one of these tiles is an aggregate OF the member list, so the
+// drill-down is simply that same list re-sorted by whatever the tile measures
+// — no extra fetch, and the rows always reconcile with the number above.
+const HUB_DRILLS = {
+  members:  { label: "Active members",  emphasis: "hours"    as const, sort: (a: HubMember, b: HubMember) => b.hours - a.hours },
+  activity: { label: "Activity %",      emphasis: "activity" as const, sort: (a: HubMember, b: HubMember) => (b.activityPct ?? -1) - (a.activityPct ?? -1) },
+  hours:    { label: "Hours tracked",   emphasis: "hours"    as const, sort: (a: HubMember, b: HubMember) => b.hours - a.hours },
+  idle:     { label: "Idle hours",      emphasis: "idle"     as const, sort: (a: HubMember, b: HubMember) => b.idleHours - a.idleHours },
+} satisfies Record<string, { label: string; emphasis: "hours" | "activity" | "idle"; sort: (a: HubMember, b: HubMember) => number }>;
+
+type HubDrillKey = keyof typeof HUB_DRILLS;
+
+// The member rows behind a clicked tile. Rendered inline directly under the
+// tile grid that was clicked, so the number and its breakdown stay adjacent.
+function MemberDrill({
+  drill, members, podIdFor, onClose,
+}: {
+  drill: HubDrillKey;
+  members: HubMember[];
+  podIdFor: (pod: string | null) => string | null | undefined;
+  onClose: () => void;
+}) {
+  const cfg = HUB_DRILLS[drill];
+  const rows = [...members].sort(cfg.sort);
+  const hi = (col: "hours" | "activity" | "idle") =>
+    cfg.emphasis === col ? { color: "var(--text-1)", fontWeight: 700 } : undefined;
+
+  return (
+    <div className="dpTableWrap" style={{ marginTop: -8, marginBottom: 24 }}>
+      <div className="dpTableHead">
+        <div>
+          <div className="dpTableTitle">
+            Behind this number — ranked by {cfg.label.toLowerCase()}
+            <button type="button" className="dpFilterChip" onClick={onClose}>× close</button>
+          </div>
+          <div className="dpTableSub">
+            {rows.length} member{rows.length !== 1 ? "s" : ""} with tracked time in this range · click a name for their pod
+          </div>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <div className="dpEmpty">No tracked time in this window.</div>
+      ) : (
+        <table className="dpTable">
+          <thead>
+            <tr><th>Bookkeeper</th><th>Pod</th><th>Hours</th><th>Activity</th><th>Idle</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => {
+              const podId = podIdFor(m.pod);
+              return (
+                <tr key={m.userId}>
+                  <td className="dpPrimary">{m.name}</td>
+                  <td className="dpMuted">
+                    {m.pod ? (podId ? <Link href={`/dashboard/hubstaff/pod/${podId}`}>{m.pod}</Link> : m.pod) : "No pod"}
+                  </td>
+                  <td className="dpMuted" style={hi("hours")}>{m.hours}h</td>
+                  <td className="dpMuted" style={hi("activity")}>{m.activityPct != null ? `${m.activityPct}%` : "—"}</td>
+                  <td className="dpMuted" style={hi("idle")}>{m.idleHours}h</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
 
 // Every toggleable block on the page, in display order. Charts first (they
 // render at the top of the main column); stats and tables below.
@@ -48,7 +121,19 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
   const [specificDate, setSpecificDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<HubstaffOverview>(initial);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [visible, setVisible] = useState<Record<PanelKey, boolean>>(ALL_VISIBLE);
+  const [drill, setDrill] = useState<HubDrillKey | null>(null);
+
+  // Clicking the active tile again closes its drill-down, so tiles toggle.
+  const toggleDrill = (k: HubDrillKey) => setDrill((prev) => (prev === k ? null : k));
+  const podIdFor = (pod: string | null) => data.pods.find((p) => p.pod === pod)?.podId;
+  // Renders the drill panel only for tiles inside the grid that was clicked,
+  // keeping the breakdown visually attached to the number it explains.
+  const drillIn = (keys: readonly HubDrillKey[]) =>
+    drill && keys.includes(drill) ? (
+      <MemberDrill drill={drill} members={data.members} podIdFor={podIdFor} onClose={() => setDrill(null)} />
+    ) : null;
 
   // Restore saved show/hide choices after mount (localStorage is client-only;
   // starting all-visible keeps SSR and first client render identical).
@@ -80,6 +165,7 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
       setData(await res.json() as HubstaffOverview);
       setDays(d);
       setSpecificDate("");
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -100,6 +186,7 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json() as HubstaffOverview);
+      setLastRefreshed(new Date());
     } catch { /* keep existing data */ } finally {
       setLoading(false);
     }
@@ -113,6 +200,7 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json() as HubstaffOverview);
       setSpecificDate(date);
+      setLastRefreshed(new Date());
     } catch { /* keep existing data and range */ } finally {
       setLoading(false);
     }
@@ -138,6 +226,7 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
           <button className="acTab" onClick={refreshData} title="Re-fetch the latest data for the current range">
             ↻ Refresh
           </button>
+          <LastRefreshed at={lastRefreshed} />
         </div>
 
         {/* ── Graphs on top ─────────────────────────────── */}
@@ -205,53 +294,56 @@ export default function HubstaffDashboard({ initial }: { initial: HubstaffOvervi
         {visible.activity && (<>
           <div className="dpSectionLbl">Activity</div>
           <div className="dpKpiGrid dpKpiGrid3">
-            <div className="dpKpi" style={{ "--kpi-accent": "#fb923c" } as React.CSSProperties}>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#fb923c" } as React.CSSProperties} aria-pressed={drill === "activity"} onClick={() => toggleDrill("activity")}>
               <div className="dpKpiVal">{data.avgMemberActivityPct != null ? `${data.avgMemberActivityPct}%` : "—"}</div>
-              <div className="dpKpiLbl">Avg activity (per member)<InfoTip text="Arithmetic mean of each active member's own activity % — every person counts equally, regardless of how many hours they logged." /></div>
-            </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#4f8ef7" } as React.CSSProperties}>
+              <div className="dpKpiLbl">Avg activity (per member)<InfoTip text="Arithmetic mean of each active member's own activity % — every person counts equally, regardless of how many hours they logged. Click to see each member's own activity %." /></div>
+            </button>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#4f8ef7" } as React.CSSProperties} aria-pressed={drill === "activity"} onClick={() => toggleDrill("activity")}>
               <div className="dpKpiVal">{data.productivityPct != null ? `${data.productivityPct}%` : "—"}</div>
-              <div className="dpKpiLbl">Org productivity (weighted)<InfoTip text="Total active time divided by total tracked time across everyone — hours-weighted, so people who tracked more time count for more." /></div>
-            </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#34d399" } as React.CSSProperties}>
+              <div className="dpKpiLbl">Org productivity (weighted)<InfoTip text="Total active time divided by total tracked time across everyone — hours-weighted, so people who tracked more time count for more. Click to see the per-member hours and activity behind it." /></div>
+            </button>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#34d399" } as React.CSSProperties} aria-pressed={drill === "members"} onClick={() => toggleDrill("members")}>
               <div className="dpKpiVal">{data.activeCount ?? "—"}</div>
-              <div className="dpKpiLbl">Active members<InfoTip text="Number of distinct people with at least some tracked time in the selected date range." /></div>
-            </div>
+              <div className="dpKpiLbl">Active members<InfoTip text="Number of distinct people with at least some tracked time in the selected date range. Click to list them." /></div>
+            </button>
           </div>
+          {drillIn(["activity", "members"])}
         </>)}
 
         {/* ── Consistency ───────────────────────────────── */}
         {visible.consistency && (<>
           <div className="dpSectionLbl">Consistency</div>
           <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-            <div className="dpKpi" style={{ "--kpi-accent": "#fb923c" } as React.CSSProperties}>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#fb923c" } as React.CSSProperties} aria-pressed={drill === "activity"} onClick={() => toggleDrill("activity")}>
               <div className="dpKpiVal">{data.medianMemberActivityPct != null ? `${data.medianMemberActivityPct}%` : "—"}</div>
-              <div className="dpKpiLbl">Median activity (typical member)<InfoTip text="The middle value of everyone's activity % — less skewed by a few outliers than the average above." /></div>
-            </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties}>
+              <div className="dpKpiLbl">Median activity (typical member)<InfoTip text="The middle value of everyone's activity % — less skewed by a few outliers than the average above. Click to see the full ranked list it's the middle of." /></div>
+            </button>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties} aria-pressed={drill === "activity"} onClick={() => toggleDrill("activity")}>
               <div className="dpKpiVal">{data.activityStdDevPct != null ? `±${data.activityStdDevPct}%` : "—"}</div>
-              <div className="dpKpiLbl">Activity spread (std dev)<InfoTip text="How much individual activity % varies across the team. A low number means everyone's close to the average; a high number means some people are far above or below it." /></div>
-            </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties}>
+              <div className="dpKpiLbl">Activity spread (std dev)<InfoTip text="How much individual activity % varies across the team. A low number means everyone's close to the average; a high number means some people are far above or below it. Click to see who sits where." /></div>
+            </button>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties} aria-pressed={drill === "idle"} onClick={() => toggleDrill("idle")}>
               <div className="dpKpiVal">{data.idleRatioPct != null ? `${data.idleRatioPct}%` : "—"}</div>
-              <div className="dpKpiLbl">Idle / tracked<InfoTip text="Idle hours as a percentage of total tracked hours." /></div>
-            </div>
+              <div className="dpKpiLbl">Idle / tracked<InfoTip text="Idle hours as a percentage of total tracked hours. Click to see idle hours per member." /></div>
+            </button>
           </div>
+          {drillIn(["activity", "idle"])}
         </>)}
 
         {/* ── Time breakdown ────────────────────────────── */}
         {visible.timeBreakdown && (<>
           <div className="dpSectionLbl">Time breakdown</div>
           <div className="dpKpiGrid dpKpiGridLast" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
-            <div className="dpKpi" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties}>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#a78bfa" } as React.CSSProperties} aria-pressed={drill === "hours"} onClick={() => toggleDrill("hours")}>
               <div className="dpKpiVal">{data.hoursTracked ?? "—"}</div>
-              <div className="dpKpiLbl">Hours tracked<InfoTip text="Total hours logged by everyone in the selected date range, across all projects." /></div>
-            </div>
-            <div className="dpKpi" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties}>
+              <div className="dpKpiLbl">Hours tracked<InfoTip text="Total hours logged by everyone in the selected date range, across all projects. Click to see the per-member split." /></div>
+            </button>
+            <button type="button" className="dpKpi dpKpiBtn" style={{ "--kpi-accent": "#f87171" } as React.CSSProperties} aria-pressed={drill === "idle"} onClick={() => toggleDrill("idle")}>
               <div className="dpKpiVal">{data.idleHours ?? "—"}</div>
-              <div className="dpKpiLbl">Idle hrs<InfoTip text="Tracked time with no keyboard/mouse activity detected." /></div>
-            </div>
+              <div className="dpKpiLbl">Idle hrs<InfoTip text="Tracked time with no keyboard/mouse activity detected. Click to see idle hours per member." /></div>
+            </button>
           </div>
+          {drillIn(["hours", "idle"])}
         </>)}
 
         {/* ── By Pod ────────────────────────────────────── */}

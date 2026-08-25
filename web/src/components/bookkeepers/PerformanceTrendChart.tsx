@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { displayName } from "@/lib/asana-client-map";
+import { displayName, isExcludedBookkeeper } from "@/lib/asana-client-map";
 
 // Validated categorical palette (dataviz skill reference theme, first 6
 // slots, CVD-safe order — checked with scripts/validate_palette.js). Same
@@ -14,7 +14,7 @@ const PALETTE = ["#2a78d6", "#008300", "#e87ba4", "#eda100", "#1baf7a", "#eb6834
 const MAX_SERIES = 6;
 const WEEK_OPTIONS = [4, 8, 12, 16] as const;
 
-type Metric = "asana" | "hubstaff";
+type Metric = "asana" | "hubstaff" | "efficiency";
 
 interface TrendPoint { weekStartISO: string; asanaCompleted: number | null; hubstaffHours: number | null }
 interface TrendSeries { id: string; name: string; email: string; points: TrendPoint[] }
@@ -26,8 +26,19 @@ function fmtWeek(iso: string): string {
   return `${d.getUTCDate()} ${mo}`;
 }
 
+// "efficiency" is derived client-side from the same two numbers already
+// fetched for the other two metrics — no new data, just a ratio. Null (not
+// 0) when there's no tracked time that week: a 0-hour week has no defined
+// output-per-hour, it isn't literally zero.
 function metricValue(p: TrendPoint, metric: Metric): number | null {
-  return metric === "asana" ? p.asanaCompleted : p.hubstaffHours;
+  if (metric === "asana") return p.asanaCompleted;
+  if (metric === "hubstaff") return p.hubstaffHours;
+  if (!p.hubstaffHours) return null;
+  return Math.round(((p.asanaCompleted ?? 0) / p.hubstaffHours) * 10) / 10;
+}
+
+function metricSuffix(metric: Metric): string {
+  return metric === "hubstaff" ? "h" : metric === "efficiency" ? "/hr" : "";
 }
 
 // SVG multi-line chart — one line per selected bookkeeper across weeks, for
@@ -104,7 +115,7 @@ function LineChart({ weeks, series, metric, colorOf }: { weeks: string[]; series
           {series.map((s, i) => (
             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
               <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: colorOf(i), marginRight: 6 }} />{displayName(s.name)}</span>
-              <span>{metricValue(s.points[hoverIdx], metric) ?? "—"}{metric === "hubstaff" ? "h" : ""}</span>
+              <span>{metricValue(s.points[hoverIdx], metric) ?? "—"}{metricSuffix(metric)}</span>
             </div>
           ))}
         </div>
@@ -129,6 +140,7 @@ export function PerformanceTrendChart() {
       const res = await fetch(`/api/bookkeepers/trend?weeks=${weeks}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json() as TrendResult;
+      json.series = json.series.filter((s) => !isExcludedBookkeeper(s.name, s.id)); // hide departed staff
       setData(json);
       // Default to the 4 busiest bookkeepers (by total activity) the first
       // time data loads, so the chart isn't empty before anyone picks anyone.
@@ -174,6 +186,7 @@ export function PerformanceTrendChart() {
         <div className="acTabBar" style={{ marginBottom: 0 }}>
           <button className={`acTab ${metric === "asana" ? "acTabActive" : ""}`} onClick={() => setMetric("asana")}>Tasks completed (Asana)</button>
           <button className={`acTab ${metric === "hubstaff" ? "acTabActive" : ""}`} onClick={() => setMetric("hubstaff")}>Hours tracked (Hubstaff)</button>
+          <button className={`acTab ${metric === "efficiency" ? "acTabActive" : ""}`} onClick={() => setMetric("efficiency")}>Output per hour</button>
         </div>
         <span style={{ flex: 1 }} />
         <div className="acTabBar" style={{ marginBottom: 0 }}>
@@ -221,9 +234,10 @@ export function PerformanceTrendChart() {
               {selectedSeries.map((s, i) => (
                 <tr key={s.id}>
                   <td className="dpPrimary"><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: "50%", background: colorOf(i), marginRight: 8 }} />{displayName(s.name)}</td>
-                  {s.points.map((p, wi) => (
-                    <td key={wi} className="dpMuted" style={{ textAlign: "right" }}>{metricValue(p, metric) ?? "—"}</td>
-                  ))}
+                  {s.points.map((p, wi) => {
+                    const v = metricValue(p, metric);
+                    return <td key={wi} className="dpMuted" style={{ textAlign: "right" }}>{v != null ? `${v}${metricSuffix(metric)}` : "—"}</td>;
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -231,7 +245,7 @@ export function PerformanceTrendChart() {
         </>
       )}
       <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 10 }}>
-        Weekly totals, Monday-start · Asana counts tasks completed that week · Hubstaff hours are weekdays only.
+        Weekly totals, Monday-start · Asana counts tasks completed that week · Hubstaff hours are weekdays only · Output per hour = tasks completed ÷ hours tracked that week (blank when 0 hours were tracked, not zero).
         {data?.errors.asana && <span style={{ color: "#f87171" }}> Asana: {data.errors.asana}.</span>}
         {data?.errors.hubstaff && <span style={{ color: "#f87171" }}> Hubstaff: {data.errors.hubstaff}.</span>}
       </div>
